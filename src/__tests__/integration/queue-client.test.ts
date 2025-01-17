@@ -1,7 +1,7 @@
 import { QueueClient } from '../../clients/queue-client';
 import { OrderBuilder } from '../../services/order-builder';
 import { OrderBook } from '../../services/orderbook';
-import { MakerOrder, OrderSide } from '../../types/order';
+import { OrderSide } from '../../types/order';
 import { createClient } from 'redis';
 import { Settlement } from '../../types/contracts';
 import hre from 'hardhat';
@@ -11,6 +11,7 @@ import { ExchangeQueue } from '../../services/exchange-queue';
 import { Provider, JsonRpcProvider } from 'ethers';
 import { Executor } from '../../services/executor';
 import { MarketsByTicker } from '../../types/markets';
+import { network } from 'hardhat';
 
 describe('QueueClient Integration Tests', () => {
     let queueClient: QueueClient;
@@ -26,7 +27,7 @@ describe('QueueClient Integration Tests', () => {
 
     beforeEach(async () => {
         let [exchange, maker, taker] = await hre.ethers.getSigners();
-        provider = new JsonRpcProvider('http://localhost:8545');
+        provider = hre.ethers.provider;
 
         settlement = await hre.ethers.deployContract('Settlement');
         weth = await hre.ethers.deployContract('MockERC20', ['WETH', 'WETH', 18]);
@@ -34,22 +35,14 @@ describe('QueueClient Integration Tests', () => {
 
         let settlementContractAddress = settlement.target.toString();
 
-        let tx = await weth.mint(maker.address, toWei("100", 18)); // 100 WETH
-        await tx.wait();
-        tx = await weth.connect(maker).approve(settlementContractAddress, toWei("100", 18));
-        await tx.wait();
-
-        tx = await usdc.mint(taker.address, toWei("200000", 6));
-        await tx.wait();
-        tx = await usdc.connect(taker).approve(settlementContractAddress, toWei("200000", 6));
-        await tx.wait();
+        await weth.mint(maker.address, toWei("100", 18)); // 100 WETH
+        await weth.connect(maker).approve(settlementContractAddress, toWei("100", 18));
+        await usdc.mint(taker.address, toWei("200000", 6));
+        await usdc.connect(taker).approve(settlementContractAddress, toWei("200000", 6));
 
         redisClient = createClient();
         await redisClient.connect();
         await redisClient.flushAll();
-
-        // const allowance = await weth.allowance(settlementContractAddress, maker.address);
-        // console.log('allowance', allowance);
 
         const marketsByTicker: MarketsByTicker = {
             'WETH/USDC': {
@@ -75,68 +68,44 @@ describe('QueueClient Integration Tests', () => {
 
     describe('QueueClient Tests', () => {
         it('should execute a trade', async () => {
+            await hre.network.provider.send("evm_setAutomine", [true]);
             let [exchange, maker, taker] = await hre.ethers.getSigners();
             const exchangeQueue = new ExchangeQueue(orderBook, executor, provider);
 
             let tx = await settlement.connect(maker).deposit(weth.target.toString(), toWei("100", 18));
-            await tx.wait();
             tx = await settlement.connect(taker).deposit(usdc.target.toString(), toWei("200000", 6));
-            await tx.wait();
 
-            let makerDeposit = await settlement.deposits(maker.address, weth.target);
-            let takerDeposit = await settlement.deposits(taker.address, usdc.target);
+            let initialMakerWethDeposit = await settlement.deposits(maker.address, weth.target);
+            let initialMakerUsdcDeposit = await settlement.deposits(maker.address, usdc.target);
+            let initialTakerWethDeposit = await settlement.deposits(taker.address, weth.target);
+            let initialTakerUsdcDeposit = await settlement.deposits(taker.address, usdc.target);
 
             // maker sells 1 ETH for 3000 USDC
             const limitOrder = await makerOrderBuilder.createLimitOrder('WETH/USDC', '1', '3000.00', OrderSide.SELL, deadline());
             // taker buys 1 ETH for 3000 USDC (min received)
             const marketOrder = await takerOrderBuilder.createMarketOrder('WETH/USDC', '1', '3000.00', OrderSide.BUY, deadline());
-            let processed = false;
-
-
-            // exchangeQueue.orderQueue.on('completed', (job, result) => {
-            //     // console.log('order queue completed', result)
-            //     // processed = true;
-            // });
-
-            // exchangeQueue.scheduledTxQueue.on('completed', (job, result) => {
-            //     console.log('scheduled tx queue completed', result)
-            //     processed = true;
-            // });
-
-            // await new Promise<void>((resolve) => {
-            //     exchangeQueue.confirmedTxQueue.on('completed', (job, result) => {
-            //         console.log('confirmed tx queue completed', result)
-            //         processed = true;
-            //         resolve();
-            //     });
-            // });
-
-
 
             queueClient.submitLimitOrder(limitOrder);
             queueClient.submitMarketOrder(marketOrder);
 
-            // const orderQueueCompleted = await new Promise<boolean>((resolve) => {
-            //     exchangeQueue.orderQueue.on('completed', (job, result) => {
-            //         console.log('order queue completed', job)
-            //         processed = false;
-            //         resolve(processed);
-            //     });
-            // });
-
-            const confirmedTxQueueCompleted = await new Promise<boolean>((resolve) => {
+            let confirmedTxQueueResult = await new Promise<any>((resolve) => {
                 exchangeQueue.confirmedTxQueue.on('completed', (job, result) => {
-                    console.log('confirmed tx queue completed', job)
-                    console.log('result', result)
-                    processed = true;
-                    resolve(processed);
+                    resolve(result);
                 });
             });
 
-            console.log('confirmedTxQueueCompleted', confirmedTxQueueCompleted)
+            let makerWethDeposit = await settlement.deposits(maker.address, weth.target);
+            let makerUsdcDeposit = await settlement.deposits(maker.address, usdc.target);
+            let takerWethDeposit = await settlement.deposits(taker.address, weth.target);
+            let takerUsdcDeposit = await settlement.deposits(taker.address, usdc.target);
 
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            expect(processed).toBe(true);
+            expect(confirmedTxQueueResult.success).toBe(true);
+            expect(confirmedTxQueueResult.receipt.hash).toBeDefined();
+            expect(confirmedTxQueueResult.receipt.status).toBe(1);
+            expect((makerWethDeposit - initialMakerWethDeposit).toString()).toBe(toWei("-1", 18));
+            expect((takerWethDeposit - initialTakerWethDeposit).toString()).toBe(toWei("1", 18));
+            expect((makerUsdcDeposit - initialMakerUsdcDeposit).toString()).toBe(toWei("3000", 6));
+            expect((takerUsdcDeposit - initialTakerUsdcDeposit).toString()).toBe(toWei("-3000", 6));
         });
     });
 });

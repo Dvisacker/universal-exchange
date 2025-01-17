@@ -3,7 +3,7 @@ import { solidityPackedKeccak256 } from 'ethers'
 import { TakerOrder } from './types/order';
 import { MakerOrder } from './types/order';
 import { ethers } from 'hardhat';
-
+import { Provider } from 'ethers';
 /**
  * Calculates the quote token amount based on the base amount and price level
  * @param baseAmount - The amount of base token in its smallest unit (wei)
@@ -89,3 +89,12 @@ export const deadline = (hours = 1): number => {
 export const defaultDeadline = (hours = 1): number => {
     return Date.now() + hours * 3600000;
 };
+
+export const pollForReceipt = async (provider: Provider, txHash: string, maxAttempts: number = 10) => {
+    for (let i = 0; i < maxAttempts; i++) {
+        const receipt = await provider.getTransactionReceipt(txHash);
+        if (receipt) return receipt;
+        await new Promise(r => setTimeout(r, 1000));
+    }
+    throw new Error('Receipt not found');
+}
