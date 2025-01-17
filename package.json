@@ -5,8 +5,8 @@
   "scripts": {
     "test": "jest --runInBand",
     "test:quiet": "jest --silent",
-    "test:watch": "jest --watch --no-deprecation",
-    "test:watch-2": "node --trace-deprecation node_modules/jest/bin/jest.js --watch",
+    "test:watch": "jest --watch",
+    "test:watch:quiet": "jest --watch --silent",
     "compile": "hardhat compile",
     "deploy": "hardhat run scripts/deploy.ts"
   },

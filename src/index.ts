@@ -6,6 +6,7 @@ import { ethers } from 'hardhat';
 import { Provider, JsonRpcProvider } from 'ethers';
 import { Logger } from './utils/logger';
 import { Executor } from './services/executor';
+import { MarketsByTicker } from './types/markets';
 
 function validateEnvironment(): {
     SETTLEMENT_CONTRACT_ADDRESS: string;
@@ -56,8 +57,18 @@ async function main() {
         await redisClient.connect();
         Logger.info('Redis connected successfully');
 
+        const marketsByTicker: MarketsByTicker = {
+            'WETH/USDC': {
+                baseToken: '0x4200000000000000000000000000000000000006',
+                baseDecimals: 18,
+                quoteToken: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+                quoteDecimals: 6,
+                symbol: 'WETH/USDC'
+            }
+        }
+
         // Initialize core services
-        const orderBook = new OrderBook();
+        const orderBook = new OrderBook(marketsByTicker);
         const queueClient = new QueueClient();
         const executor = new Executor(provider, exchangeSigner, env.SETTLEMENT_CONTRACT_ADDRESS);
         const exchangeQueue = new ExchangeQueue(
