@@ -2,6 +2,7 @@ import { DOMAIN, MAKER_ORDER_TYPE, OrderBuilder, TAKER_ORDER_TYPE } from '../../
 import { OrderSide } from '../../types/order';
 import { verifyTypedData, Wallet } from 'ethers';
 import { defaultDeadline } from '../../utils';
+import { MarketsByTicker } from '../../types/markets';
 
 describe('OrderClient Integration Tests', () => {
     let builder: OrderBuilder;
@@ -9,8 +10,18 @@ describe('OrderClient Integration Tests', () => {
     const TEST_PRIVATE_KEY = '0x1234567890123456789012345678901234567890123456789012345678901234';
 
     beforeEach(() => {
+        const marketsByTicker: MarketsByTicker = {
+            'WETH/USDC': {
+                baseToken: '0x4200000000000000000000000000000000000006',
+                baseDecimals: 18,
+                quoteToken: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+                quoteDecimals: 6,
+                symbol: 'WETH/USDC'
+            }
+        }
+
         wallet = new Wallet(TEST_PRIVATE_KEY);
-        builder = new OrderBuilder(wallet);
+        builder = new OrderBuilder(wallet, marketsByTicker);
     });
 
     describe('createLimitOrder', () => {
