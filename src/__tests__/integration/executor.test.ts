@@ -19,7 +19,7 @@ describe('Executor Integration Tests', () => {
     let settlement: Settlement;
     let weth: MockERC20;
     let usdc: MockERC20;
-    let provider: JsonRpcProvider;
+    let provider: ethers.Provider;
     let exchange: ethers.Signer;
     let maker: ethers.Signer;
     let taker: ethers.Signer;
@@ -28,7 +28,7 @@ describe('Executor Integration Tests', () => {
     let takerAddress: string;
 
     beforeEach(async () => {
-        provider = new JsonRpcProvider('http://localhost:8545');
+        provider = hre.ethers.provider;
         [exchange, maker, taker] = await hre.ethers.getSigners();
 
         // Deploy contracts
@@ -61,7 +61,6 @@ describe('Executor Integration Tests', () => {
         );
 
         await tx.wait();
-
 
         tx = await usdc.connect(taker).approve(
             settlement.target,
@@ -191,11 +190,9 @@ describe('Executor Integration Tests', () => {
             baseAmountFilled: toWei("1000", 18)
         };
 
-        // Attempt to simulate trade
         const result = await executor.simulateTrade(largeMatch);
         expect(result).toBe(false);
 
-        // Attempt to execute should fail
         await expect(executor.trade(largeMatch)).rejects.toThrow();
     });
 
@@ -206,41 +203,31 @@ describe('Executor Integration Tests', () => {
             quoteAmountFilled: toWei("1000000", 6)
         };
 
-        // Attempt to simulate trade
         const result = await executor.simulateTrade(largeMatch);
         expect(result).toBe(false);
 
-        // Attempt to execute should fail
         await expect(executor.trade(largeMatch)).rejects.toThrow();
     });
 
     it('should fail to execute trade with revoked maker approval', async () => {
-        // Revoke maker's approval
         await weth.connect(maker).approve(settlement.target, 0);
 
-        // Attempt to simulate trade
         const result = await executor.simulateTrade(sampleMatch);
         expect(result).toBe(false);
 
-        // Attempt to execute should fail
         await expect(executor.trade(sampleMatch)).rejects.toThrow();
 
-        // Restore approval for other tests
         await weth.connect(maker).approve(settlement.target, ethers.MaxUint256);
     });
 
     it('should fail to execute trade with revoked taker approval', async () => {
-        // Revoke taker's approval
         await usdc.connect(taker).approve(settlement.target, 0);
 
-        // Attempt to simulate trade
         const result = await executor.simulateTrade(sampleMatch);
         expect(result).toBe(false);
 
-        // Attempt to execute should fail
         await expect(executor.trade(sampleMatch)).rejects.toThrow();
 
-        // Restore approval for other tests
         await usdc.connect(taker).approve(settlement.target, ethers.MaxUint256);
     });
 }); 
