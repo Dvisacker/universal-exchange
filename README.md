@@ -2,25 +2,25 @@
 
 - Architect and implement a part of the backend for a new exchange that uAssets could be settled on. Focus on the part you think best showcase your abilities and relevance.
 
-I initially wanted to mostly focus on the orderbook but implemented a few other things (queue, executor contract) - mostly to make sure the system as a whole somewhat makes sense.
+I initially wanted to focused on the orderbook but implemented a few other things (queue, executor contract) - mostly to make sure the system as a whole somewhat makes sense.
 
 ## Architecture
 
 - This is a PoC for a decentralized exchange with an off-chain orderbook and on-chain settlement.
 - Order makers/takers sign orders and send them to the API (not implemented). Orders are routed through a queue, and added/matched in an offchain orderbook. If orders are matched, valid and simulation succeeds, the trade is finalized through a settlement contract.
 - For better UX, orders can be cancelled off-chain but that requires trusting the exchange (us) to not send the order until the order deadline (part of signature) has passed. Alternatively, orders could be cancelled on-chain (not implemented). With this system solvers/uAssets merchants to continuously update their quotes without paying fees.
-- This exchange can be deployed on EVM chains. In particular, each asset/chain would have it's own orderbook. But only on settlement contract per chain is needed.
+- This exchange can be deployed on EVM chains. In particular, each asset/chain would have it's own orderbook. But only one settlement contract per chain is needed.
 - Communication between server and client is not implemented. Could/should be done in REST, Websockets, Push-notifications.
 
 ## Diagram
 
 ![Diagram](./architecture.png)
 
-This is a very simplified diagram.
+This is a very simplified diagram and doesn't include many resources necessary for running a production system (database, monitoring, etc).
 
 ## High level overview of the different components:
 
-**Off-chain Orderbook**: The orderbook is managed and stored with Redis. There's probably a lot of edge cases and errors in the current implementation, i haven't had time to test on non-trivial orders and sequences.
+**Off-chain Orderbook**: The orderbook is managed and stored with Redis. There's probably a lot of edge cases and errors in the current implementation, haven't yet tested on non-trivial order sequences.
 
 - Currently only supports limit and market orders.
 - Price-time priority is implemented.
@@ -31,7 +31,7 @@ This is a very simplified diagram.
 
 There are 3 queues:
 
-- Order queue: Adds or matches orders in the orderbook. Matched orders whose simulation succeeds are added to the pending trades queue.
+- Order queue: Sends orders to the orderbook. Matched orders whose simulation succeeds are added to the pending trades queue.
 - Pending trades queue: Orders that are matched but not yet confirmed. After the transaction is confirmed, a message is sent to the confirmed transactions queue.
 - Confirmed transactions queue: Trade that have been confirmed are routed through this queue.
 
