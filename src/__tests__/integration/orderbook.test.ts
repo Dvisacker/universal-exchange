@@ -2,8 +2,8 @@ import { Wallet } from 'ethers';
 import { createClient } from 'redis';
 import { OrderBook } from '../../services/orderbook';
 import { MarketsByTicker } from '../../types/markets';
-import { OrderSide } from '../../types/order';
-import { orderDeadline } from '../../utils';
+import { OrderAction, OrderSide } from '../../types/order';
+import { orderDeadline } from '../../utils/helpers';
 import { OrderBuilder } from '../../utils/order-builder';
 describe('OrderBook Integration Tests', () => {
     let orderBook: OrderBook;
@@ -45,7 +45,10 @@ describe('OrderBook Integration Tests', () => {
                 OrderSide.SELL,
             );
 
-            await orderBook.handleNewLimitOrder(mockOrder);
+            await orderBook.handleOrderRequest({
+                action: OrderAction.NEW_LIMIT_ORDER,
+                payload: { order: mockOrder }
+            });
 
             const openOrderKey = `open_orders:${mockOrder.id}`;
             const orderExists = await redisClient.exists(openOrderKey);
@@ -69,7 +72,10 @@ describe('OrderBook Integration Tests', () => {
                 OrderSide.BUY,
             );
 
-            await orderBook.handleNewLimitOrder(mockOrder);
+            await orderBook.handleOrderRequest({
+                action: OrderAction.NEW_LIMIT_ORDER,
+                payload: { order: mockOrder }
+            });
 
             // Verify the order was added correctly
             const openOrderKey = `open_orders:${mockOrder.id}`;
@@ -135,7 +141,10 @@ describe('OrderBook Integration Tests', () => {
             ]);
 
             for (const order of [mockOrder, mockOrder2, mockOrder3, mockOrder4, mockOrder5, mockOrder6]) {
-                orderBook.handleNewLimitOrder(order);
+                orderBook.handleOrderRequest({
+                    action: OrderAction.NEW_LIMIT_ORDER,
+                    payload: { order }
+                });
             }
 
             await new Promise(resolve => setTimeout(resolve, 100));
@@ -153,8 +162,14 @@ describe('OrderBook Integration Tests', () => {
                 OrderSide.SELL,
             );
 
-            await orderBook.handleNewLimitOrder(mockOrder);
-            await expect(orderBook.handleNewLimitOrder(mockOrder)).rejects.toThrow('Order');
+            await orderBook.handleOrderRequest({
+                action: OrderAction.NEW_LIMIT_ORDER,
+                payload: { order: mockOrder }
+            });
+            await expect(orderBook.handleOrderRequest({
+                action: OrderAction.NEW_LIMIT_ORDER,
+                payload: { order: mockOrder }
+            })).rejects.toThrow('Order');
         });
     });
 
@@ -167,8 +182,14 @@ describe('OrderBook Integration Tests', () => {
                 OrderSide.SELL,
             );
 
-            await orderBook.handleNewLimitOrder(mockOrder);
-            await orderBook.handleCancelLimitOrder('WETH/USDC', mockOrder.id);
+            await orderBook.handleOrderRequest({
+                action: OrderAction.NEW_LIMIT_ORDER,
+                payload: { order: mockOrder }
+            });
+            await orderBook.handleOrderRequest({
+                action: OrderAction.CANCEL_LIMIT_ORDER,
+                payload: { order: mockOrder }
+            });
 
             const openOrderKey = `open_orders:${mockOrder.id}`;
             const orderExists = await redisClient.exists(openOrderKey);
@@ -187,7 +208,10 @@ describe('OrderBook Integration Tests', () => {
                 OrderSide.SELL,
             );
 
-            await expect(orderBook.handleCancelLimitOrder('WETH/USDC', mockOrder.id)).rejects.toThrow('Order');
+            await expect(orderBook.handleOrderRequest({
+                action: OrderAction.CANCEL_LIMIT_ORDER,
+                payload: { order: mockOrder }
+            })).rejects.toThrow('Order');
         });
 
         it('should throw error when cancelling an inflight order', async () => {
@@ -198,13 +222,19 @@ describe('OrderBook Integration Tests', () => {
                 OrderSide.SELL,
             );
 
-            await orderBook.handleNewLimitOrder(mockOrder);
+            await orderBook.handleOrderRequest({
+                action: OrderAction.NEW_LIMIT_ORDER,
+                payload: { order: mockOrder }
+            });
 
             // Add order to inflight orders
             const inflightOrderKey = `inflight_orders:${mockOrder.id}`;
             await redisClient.hSet(inflightOrderKey, 'id', mockOrder.id);
 
-            await expect(orderBook.handleCancelLimitOrder('WETH/USDC', mockOrder.id)).rejects.toThrow('inflight');
+            await expect(orderBook.handleOrderRequest({
+                action: OrderAction.CANCEL_LIMIT_ORDER,
+                payload: { order: mockOrder }
+            })).rejects.toThrow('inflight');
         });
     });
 
@@ -217,7 +247,10 @@ describe('OrderBook Integration Tests', () => {
                 '1800.00',
                 OrderSide.SELL,
             );
-            await orderBook.handleNewLimitOrder(limitOrder);
+            await orderBook.handleOrderRequest({
+                action: OrderAction.NEW_LIMIT_ORDER,
+                payload: { order: limitOrder }
+            });
 
             // Create a market buy order
             const marketOrder = await orderBuilder.createMarketOrder(
@@ -228,7 +261,10 @@ describe('OrderBook Integration Tests', () => {
             );
 
             // Execute the market order
-            const matches = await orderBook.handleNewMarketOrder(marketOrder);
+            const matches = await orderBook.handleOrderRequest({
+                action: OrderAction.NEW_MARKET_ORDER,
+                payload: { order: marketOrder }
+            });
 
             // Verify match
             expect(matches.length).toBe(1);
@@ -251,8 +287,14 @@ describe('OrderBook Integration Tests', () => {
                 '1850.00',
                 OrderSide.SELL,
             );
-            await orderBook.handleNewLimitOrder(limitOrder1);
-            await orderBook.handleNewLimitOrder(limitOrder2);
+            await orderBook.handleOrderRequest({
+                action: OrderAction.NEW_LIMIT_ORDER,
+                payload: { order: limitOrder1 }
+            });
+            await orderBook.handleOrderRequest({
+                action: OrderAction.NEW_LIMIT_ORDER,
+                payload: { order: limitOrder2 }
+            });
 
             // Create a market buy order for more than available at best price
             const marketOrder = await orderBuilder.createMarketOrder(
@@ -262,7 +304,10 @@ describe('OrderBook Integration Tests', () => {
                 OrderSide.BUY,
             );
 
-            const matches = await orderBook.handleNewMarketOrder(marketOrder);
+            const matches = await orderBook.handleOrderRequest({
+                action: OrderAction.NEW_MARKET_ORDER,
+                payload: { order: marketOrder }
+            });
             const totalFilled = BigInt(matches[0].baseAmountFilled) + BigInt(matches[1].baseAmountFilled);
 
             // Verify matches
@@ -280,7 +325,10 @@ describe('OrderBook Integration Tests', () => {
                 '2000.00',
                 OrderSide.SELL,
             );
-            await orderBook.handleNewLimitOrder(limitOrder);
+            await orderBook.handleOrderRequest({
+                action: OrderAction.NEW_LIMIT_ORDER,
+                payload: { order: limitOrder }
+            });
 
             // Create a market buy order with lower max price
             const marketOrder = await orderBuilder.createMarketOrder(
@@ -290,7 +338,10 @@ describe('OrderBook Integration Tests', () => {
                 OrderSide.BUY,
             );
 
-            const matches = await orderBook.handleNewMarketOrder(marketOrder);
+            const matches = await orderBook.handleOrderRequest({
+                action: OrderAction.NEW_MARKET_ORDER,
+                payload: { order: marketOrder }
+            });
 
             // Verify no matches
             expect(matches.length).toBe(0);
@@ -304,7 +355,10 @@ describe('OrderBook Integration Tests', () => {
                 '1800.00',
                 OrderSide.BUY,
             );
-            await orderBook.handleNewLimitOrder(limitOrder);
+            await orderBook.handleOrderRequest({
+                action: OrderAction.NEW_LIMIT_ORDER,
+                payload: { order: limitOrder }
+            });
 
             // Create a market sell order
             const marketOrder = await orderBuilder.createMarketOrder(
@@ -314,7 +368,10 @@ describe('OrderBook Integration Tests', () => {
                 OrderSide.SELL,
             );
 
-            const matches = await orderBook.handleNewMarketOrder(marketOrder);
+            const matches = await orderBook.handleOrderRequest({
+                action: OrderAction.NEW_MARKET_ORDER,
+                payload: { order: marketOrder }
+            });
 
             expect(matches.length).toBe(1);
             expect(matches[0].makerOrderId).toBe(limitOrder.id);
@@ -330,7 +387,10 @@ describe('OrderBook Integration Tests', () => {
                 OrderSide.SELL,
                 orderDeadline(-1) // Expired 1 hour ago
             );
-            await orderBook.handleNewLimitOrder(expiredOrder);
+            await orderBook.handleOrderRequest({
+                action: OrderAction.NEW_LIMIT_ORDER,
+                payload: { order: expiredOrder }
+            });
 
             // Create a valid limit order
             const validOrder = await orderBuilder.createLimitOrder(
@@ -339,7 +399,10 @@ describe('OrderBook Integration Tests', () => {
                 '1850.00',
                 OrderSide.SELL,
             );
-            await orderBook.handleNewLimitOrder(validOrder);
+            await orderBook.handleOrderRequest({
+                action: OrderAction.NEW_LIMIT_ORDER,
+                payload: { order: validOrder }
+            });
 
             // Create a market buy order
             const marketOrder = await orderBuilder.createMarketOrder(
@@ -349,7 +412,10 @@ describe('OrderBook Integration Tests', () => {
                 OrderSide.BUY,
             );
 
-            const matches = await orderBook.handleNewMarketOrder(marketOrder);
+            const matches = await orderBook.handleOrderRequest({
+                action: OrderAction.NEW_MARKET_ORDER,
+                payload: { order: marketOrder }
+            });
 
             // Should only match with the valid order
             expect(matches.length).toBe(1);
@@ -364,7 +430,10 @@ describe('OrderBook Integration Tests', () => {
                 '1800.00',
                 OrderSide.SELL,
             );
-            await orderBook.handleNewLimitOrder(limitOrder1);
+            await orderBook.handleOrderRequest({
+                action: OrderAction.NEW_LIMIT_ORDER,
+                payload: { order: limitOrder1 }
+            });
 
             await new Promise(resolve => setTimeout(resolve, 100));
 
@@ -374,7 +443,10 @@ describe('OrderBook Integration Tests', () => {
                 '1800.00',
                 OrderSide.SELL,
             );
-            await orderBook.handleNewLimitOrder(limitOrder2);
+            await orderBook.handleOrderRequest({
+                action: OrderAction.NEW_LIMIT_ORDER,
+                payload: { order: limitOrder2 }
+            });
 
             // Create a market buy order
             const marketOrder = await orderBuilder.createMarketOrder(
@@ -384,7 +456,10 @@ describe('OrderBook Integration Tests', () => {
                 OrderSide.BUY,
             );
 
-            const matches = await orderBook.handleNewMarketOrder(marketOrder);
+            const matches = await orderBook.handleOrderRequest({
+                action: OrderAction.NEW_MARKET_ORDER,
+                payload: { order: marketOrder }
+            });
 
             expect(matches.length).toBe(1);
             expect(matches[0].makerOrderId).toBe(limitOrder1.id);

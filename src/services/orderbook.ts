@@ -1,6 +1,6 @@
 import { createClient } from 'redis';
 import { MakerOrder, OrderSide, TakerOrder, OrderAction, OrderType, makerOrderToMap, takerOrderToMap, makerOrderToObject, OrderMatch, orderMatchToMap, OrderMessage } from '../types/order';
-import { calculateQuoteAmount, getMarketKey, hashIds } from '../utils';
+import { calculateQuoteAmount, getMarketKey, hashIds } from '../utils/helpers';
 import { MarketsByTicker, TickersByTokenPair } from '../types/markets';
 
 /**
@@ -207,7 +207,7 @@ export class OrderBook {
      * @param order - The maker (limit) order to process
      * @returns A promise that resolves when the order is processed
      */
-    async handleNewLimitOrder(order: MakerOrder): Promise<void> {
+    private async handleNewLimitOrder(order: MakerOrder): Promise<void> {
         const openOrderKey = this.getOpenOrderKey(order.id);
         const marketKey = this.getMarketKey(order.baseToken, order.quoteToken);
         const priceLevelKey = this.getPriceLevelKey(marketKey);
@@ -235,7 +235,7 @@ export class OrderBook {
      * @param orderId - The ID of the order to cancel
      * @returns A promise that resolves when the order is cancelled
      */
-    async handleCancelLimitOrder(marketKey: string, orderId: string): Promise<void> {
+    private async handleCancelLimitOrder(marketKey: string, orderId: string): Promise<void> {
         const openOrderKey = this.getOpenOrderKey(orderId);
         const priceLevelKey = this.getPriceLevelKey(marketKey);
         const inflightOrderKey = this.getInflightOrderKey(orderId);
@@ -259,7 +259,7 @@ export class OrderBook {
      * @param order - The taker order to mark as inflight
      * @returns A promise that resolves when the order is added
      */
-    async addInflightOrder(order: TakerOrder): Promise<void> {
+    private async addInflightOrder(order: TakerOrder): Promise<void> {
         const inflightOrderKey = this.getInflightOrderKey(order.id);
         const orderMap = takerOrderToMap(order);
         await this.redisClient.hSet(inflightOrderKey, orderMap);
@@ -270,7 +270,7 @@ export class OrderBook {
      * @param orderId - The ID of the order to remove
      * @returns A promise that resolves when the order is removed
      */
-    async removeInflightOrder(orderId: string): Promise<void> {
+    private async removeInflightOrder(orderId: string): Promise<void> {
         const inflightOrderKey = this.getInflightOrderKey(orderId);
         await this.redisClient.del(inflightOrderKey);
     }
@@ -280,7 +280,7 @@ export class OrderBook {
      * @param orderId - The ID of the order to cancel
      * @returns A promise that resolves when the order is cancelled
      */
-    async cancelTakerOrder(orderId: string): Promise<void> {
+    private async cancelTakerOrder(orderId: string): Promise<void> {
         const inflightOrderKey = this.getInflightOrderKey(orderId);
         await this.redisClient.del(inflightOrderKey);
     }
@@ -290,7 +290,7 @@ export class OrderBook {
      * @param takerOrder - The market order to process
      * @returns A promise that resolves to an array of matched orders
      */
-    async handleNewMarketOrder(takerOrder: TakerOrder): Promise<OrderMatch[]> {
+    private async handleNewMarketOrder(takerOrder: TakerOrder): Promise<OrderMatch[]> {
         const marketKey = this.getMarketKey(takerOrder.baseToken, takerOrder.quoteToken);
         const priceKey = `${this.PRICE_LEVELS}:${marketKey}`;
 
@@ -426,7 +426,7 @@ export class OrderBook {
         return matchingOrders;
     }
 
-    async handleFailedTrade(pendingTradeId: string): Promise<void> {
+    private async handleFailedTrade(pendingTradeId: string): Promise<void> {
         const pendingTradeKey = this.getPendingTradeId(pendingTradeId);
         const pendingTrade = await this.redisClient.hGetAll(pendingTradeKey);
         const takerOrderInflightKey = this.getInflightOrderKey(pendingTrade.takerOrderId);
@@ -443,7 +443,7 @@ export class OrderBook {
         await multi.exec();
     }
 
-    async handleConfirmedTrade(pendingTradeId: string): Promise<void> {
+    private async handleConfirmedTrade(pendingTradeId: string): Promise<void> {
         const pendingTradeKey = this.getPendingTradeId(pendingTradeId);
         const pendingTrade = await this.redisClient.hGetAll(pendingTradeKey);
         const takerOrderInflightKey = this.getInflightOrderKey(pendingTrade.takerOrderId);
@@ -467,7 +467,7 @@ export class OrderBook {
      * @param request - The order request message to process
      * @returns A promise that resolves to an array of matched orders
      */
-    async handleOrderRequest(request: OrderMessage): Promise<OrderMatch[]> {
+    public async handleOrderRequest(request: OrderMessage): Promise<OrderMatch[]> {
         const { action, payload } = request;
 
         switch (action) {
