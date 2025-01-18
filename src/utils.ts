@@ -1,8 +1,7 @@
-import { parseUnits } from 'ethers';
+import { formatUnits, parseUnits } from 'ethers';
 import { solidityPackedKeccak256 } from 'ethers'
 import { TakerOrder } from './types/order';
 import { MakerOrder } from './types/order';
-import { ethers } from 'hardhat';
 import { Provider } from 'ethers';
 /**
  * Calculates the quote token amount based on the base amount and price level
@@ -56,7 +55,7 @@ export const getMarketKey = (order: MakerOrder | TakerOrder) => `${order.baseTok
  * @returns Amount in wei as a bigint
  */
 export const toWei = (amount: string, decimals: number = 18): string => {
-    return ethers.parseUnits(amount, decimals).toString();
+    return parseUnits(amount, decimals).toString();
 };
 
 /**
@@ -66,7 +65,7 @@ export const toWei = (amount: string, decimals: number = 18): string => {
  * @returns Formatted decimal string
  */
 export const fromWei = (amount: bigint, decimals: number = 18): string => {
-    return ethers.formatUnits(amount, decimals);
+    return formatUnits(amount, decimals);
 };
 
 /**

@@ -3,12 +3,13 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
+    "dev": "ts-node src/index.ts",
+    "watch": "ts-node-dev --respawn --transpile-only src/index.ts",
     "test": "jest --runInBand",
     "test:quiet": "jest --silent",
     "test:watch": "jest --watch",
     "test:watch:quiet": "jest --watch --silent",
-    "compile": "hardhat compile",
-    "deploy": "hardhat run scripts/deploy.ts"
+    "compile": "npx hardhat compile"
   },
   "keywords": [],
   "author": "",
@@ -23,6 +24,7 @@
     "@types/winston": "^2.4.4",
     "bull": "^4.16.5",
     "dotenv": "^16.4.7",
+    "ethers": "^6.11.1",
     "express": "^4.21.2",
     "redis": "^4.7.0",
     "typescript": "^5.7.3",
@@ -43,6 +45,7 @@
     "solidity-coverage": "^0.8.14",
     "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
     "typechain": "^8.3.2"
   }
 }
