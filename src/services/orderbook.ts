@@ -2,6 +2,7 @@ import { createClient } from 'redis';
 import { MakerOrder, OrderSide, TakerOrder, OrderAction, OrderType, makerOrderToMap, takerOrderToMap, makerOrderToObject, OrderMatch, orderMatchToMap, OrderMessage } from '../types/order';
 import { calculateQuoteAmount, getMarketKey, hashIds } from '../utils/helpers';
 import { MarketsByTicker, TickersByTokenPair } from '../types/markets';
+import AsyncLock from 'async-lock';
 
 /**
  * A Redis-based order book implementation for the DEX system.
@@ -16,6 +17,7 @@ export class OrderBook {
     private redisClient;
     private readonly marketInfoByTicker: MarketsByTicker = {};
     private readonly tickersByTokenPair: TickersByTokenPair = {};
+    private lock: AsyncLock;
 
     /**
      * Redis Key Patterns:
@@ -99,9 +101,11 @@ export class OrderBook {
     private readonly CANCELLED_ORDERS = 'cancelled_orders';
     private readonly PENDING_TRADES = 'pending_trades';
     private readonly FILLED_ORDERS = 'filled_orders';
+    private readonly ORDER_LOCK = 'order_lock';
 
     private readonly MAX_TIMESTAMP = 9999999999; // Used for price-time priority scoring
     private readonly PRICE_MULTIPLIER = 1000000; // 6 decimal places for price precision
+    private readonly LOCK_TIMEOUT = 30000; // 30 seconds lock timeout
 
     /**
      * Creates a new OrderBook instance and connects to Redis
@@ -109,6 +113,7 @@ export class OrderBook {
     constructor(markets: MarketsByTicker) {
         this.redisClient = createClient();
         this.redisClient.connect().catch(console.error);
+        this.lock = new AsyncLock();
 
         this.marketInfoByTicker = markets;
 
@@ -132,6 +137,20 @@ export class OrderBook {
             throw new Error(`Market key not found for ${baseToken}:${quoteToken}`);
         }
         return this.tickersByTokenPair[marketKey];
+    }
+
+    private getLockKey(request: OrderMessage): string {
+        switch (request.action) {
+            case OrderAction.NEW_LIMIT_ORDER:
+            case OrderAction.CANCEL_LIMIT_ORDER:
+            case OrderAction.NEW_MARKET_ORDER:
+                return this.getMarketKey(request.payload.order.baseToken, request.payload.order.quoteToken);
+            case OrderAction.CONFIRMED_TRADE:
+            case OrderAction.FAILED_TRADE:
+                return this.getMarketKey(request.payload.match.baseToken, request.payload.match.quoteToken);
+            default:
+                throw new Error(`Unsupported order action: ${request.action}`);
+        }
     }
 
     /**
@@ -468,36 +487,39 @@ export class OrderBook {
      * @returns A promise that resolves to an array of matched orders
      */
     public async handleOrderRequest(request: OrderMessage): Promise<OrderMatch[]> {
-        const { action, payload } = request;
+        const lockKey = this.getLockKey(request); // lock key is dependent on the market
 
-        switch (action) {
-            case OrderAction.NEW_LIMIT_ORDER:
-                if (!payload.order || payload.order.type !== 'MAKER') {
-                    throw new Error('Invalid maker order payload');
-                }
-                await this.handleNewLimitOrder(payload.order);
-                return [];
-            case OrderAction.CANCEL_LIMIT_ORDER:
-                if (!payload.order || !payload.order.id) {
-                    throw new Error('Order ID required for cancellation');
-                }
-                await this.handleCancelLimitOrder(getMarketKey(payload.order), payload.order.id);
-                return [];
-            case OrderAction.NEW_MARKET_ORDER:
-                if (!payload.order || payload.order.type !== OrderType.TAKER) {
-                    throw new Error('Invalid taker order payload');
-                }
-                const matches = await this.handleNewMarketOrder(payload.order);
-                return matches;
-            case OrderAction.CONFIRMED_TRADE:
-                await this.handleConfirmedTrade(payload.txHash);
-                return [];
+        return this.lock.acquire(lockKey, async () => {
+            const { action, payload } = request;
 
-            case OrderAction.FAILED_TRADE:
-                await this.handleFailedTrade(payload.match.pendingTradeId);
-                return [];
-            default:
-                throw new Error(`Unsupported order action: ${action}`);
-        }
+            switch (action) {
+                case OrderAction.NEW_LIMIT_ORDER:
+                    if (!payload.order || payload.order.type !== 'MAKER') {
+                        throw new Error('Invalid maker order payload');
+                    }
+                    await this.handleNewLimitOrder(payload.order);
+                    return [];
+                case OrderAction.CANCEL_LIMIT_ORDER:
+                    if (!payload.order || !payload.order.id) {
+                        throw new Error('Order ID required for cancellation');
+                    }
+                    await this.handleCancelLimitOrder(getMarketKey(payload.order), payload.order.id);
+                    return [];
+                case OrderAction.NEW_MARKET_ORDER:
+                    if (!payload.order || payload.order.type !== OrderType.TAKER) {
+                        throw new Error('Invalid taker order payload');
+                    }
+                    const matches = await this.handleNewMarketOrder(payload.order);
+                    return matches;
+                case OrderAction.CONFIRMED_TRADE:
+                    await this.handleConfirmedTrade(payload.txHash);
+                    return [];
+                case OrderAction.FAILED_TRADE:
+                    await this.handleFailedTrade(payload.match.pendingTradeId);
+                    return [];
+                default:
+                    throw new Error(`Unsupported order action: ${action}`);
+            }
+        });
     }
 } 
