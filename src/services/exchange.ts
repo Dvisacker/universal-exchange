@@ -3,7 +3,7 @@ import { OrderBook } from './orderbook';
 import { Executor } from './executor';
 import Queue, { Job } from 'bull';
 import { ethers } from 'ethers';
-import { pollForReceipt } from '../utils';
+import { pollForReceipt } from '../utils/helpers';
 import { z } from 'zod';
 
 export class Exchange {
@@ -26,27 +26,35 @@ export class Exchange {
         this.orderbook = orderbook;
         this.executor = executor;
 
-        // TODO: I believe bull processes jobs sequentially 1 by 1 by default but still needs to be tested
+        // TODO: I believe bull processes jobs sequentially 1 by 1 by default but needs to be confirmed
         this.orderQueue.process(async (job: Job<OrderMessage>, done: Queue.DoneCallback) => {
             try {
                 const request = job.data;
                 const matches = await this.orderbook.handleOrderRequest(request);
                 if (request.action === OrderAction.NEW_MARKET_ORDER && z.array(schemas.orderMatch).safeParse(matches).success) {
+                    // how do we handle the different matches here. 
                     for (const match of matches) {
-                        const canExecute = await this.executor.simulateTrade(match);
-                        if (canExecute) {
-                            this.scheduledTxQueue.add({
-                                action: OrderAction.PENDING_TRADE,
+                        try {
+                            const canExecute = await this.executor.simulateTrade(match);
+                            if (canExecute) {
+                                this.scheduledTxQueue.add({
+                                    action: OrderAction.PENDING_TRADE,
+                                    payload: { match }
+                                });
+                            }
+                        } catch (error) {
+                            await this.orderbook.handleOrderRequest({
+                                action: OrderAction.FAILED_TRADE,
                                 payload: { match }
                             });
+                            done(error);
                         }
                     }
                 }
 
                 done(null, { success: true, matches });
             } catch (error) {
-                console.log(error)
-                done(error as Error);
+                done(error);
             }
         });
 
@@ -77,12 +85,11 @@ export class Exchange {
                     });
                     done(null, { success: true, txHash });
                 } catch (error) {
-                    console.log(error)
                     await this.orderbook.handleOrderRequest({
                         action: OrderAction.FAILED_TRADE,
                         payload: { match }
                     });
-                    done(error as Error);
+                    done(error);
                 }
             }
         });
@@ -109,8 +116,11 @@ export class Exchange {
 
                     done(null, { success: true, receipt });
                 } catch (error) {
-                    await this.orderbook.removeInflightOrder(match.takerOrderId);
-                    done(error as Error);
+                    await this.orderbook.handleOrderRequest({
+                        action: OrderAction.FAILED_TRADE,
+                        payload: { match }
+                    });
+                    done(error);
                 }
             }
         });
