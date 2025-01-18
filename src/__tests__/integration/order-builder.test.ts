@@ -11,12 +11,12 @@ describe('OrderClient Integration Tests', () => {
 
     beforeEach(() => {
         const marketsByTicker: MarketsByTicker = {
-            'WETH/USDC': {
+            'uSOL/USDC': {
                 baseToken: '0x4200000000000000000000000000000000000006',
                 baseDecimals: 18,
                 quoteToken: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
                 quoteDecimals: 6,
-                symbol: 'WETH/USDC'
+                symbol: 'uSOL/USDC'
             }
         }
 
@@ -27,12 +27,12 @@ describe('OrderClient Integration Tests', () => {
     describe('createLimitOrder', () => {
         it('should create a valid limit order with correct market info', async () => {
             const baseAmount = '1'
-            const priceLevel = '1800.00';
+            const priceLevel = '180.00';
             const side = OrderSide.SELL;
             const deadline = orderDeadline()
 
             const order = await builder.createLimitOrder(
-                'WETH/USDC',
+                'uSOL/USDC',
                 baseAmount,
                 priceLevel,
                 side,
@@ -89,11 +89,11 @@ describe('OrderClient Integration Tests', () => {
     describe('createMarketOrder', () => {
         it('should create a valid market order with correct market info', async () => {
             const baseAmount = '1';
-            const priceLevel = '1800.00';
+            const priceLevel = '180.00';
             const side = OrderSide.SELL;
             const deadline = orderDeadline();
             const order = await builder.createMarketOrder(
-                'WETH/USDC',
+                'uSOL/USDC',
                 baseAmount,
                 priceLevel,
                 side,

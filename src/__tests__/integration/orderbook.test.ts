@@ -16,12 +16,12 @@ describe('OrderBook Integration Tests', () => {
         redisClient = createClient();
 
         const marketsByTicker: MarketsByTicker = {
-            'WETH/USDC': {
-                baseToken: '0x4200000000000000000000000000000000000006',
+            'uSOL/USDC': {
+                baseToken: '0x9b8df6e244526ab5f6e6400d331db28c8fdddb55',
                 baseDecimals: 18,
                 quoteToken: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
                 quoteDecimals: 6,
-                symbol: 'WETH/USDC'
+                symbol: 'uSOL/USDC'
             }
         }
 
@@ -39,9 +39,9 @@ describe('OrderBook Integration Tests', () => {
     describe('handleNewLimitOrder', () => {
         it('should successfully add a new sell limit order', async () => {
             const mockOrder = await orderBuilder.createLimitOrder(
-                'WETH/USDC',
+                'uSOL/USDC',
                 '1.0',
-                '3000.00',
+                '300.00',
                 OrderSide.SELL,
             );
 
@@ -54,7 +54,7 @@ describe('OrderBook Integration Tests', () => {
             const orderExists = await redisClient.exists(openOrderKey);
             expect(orderExists).toBe(1);
 
-            const priceLevelKey = `price_levels:WETH/USDC`;
+            const priceLevelKey = `price_levels:uSOL/USDC`;
             const compositeIds = await redisClient.zRangeByScore(priceLevelKey, '-inf', 'inf');
             expect(compositeIds.length).toBe(1);
             expect(compositeIds[0]).toBe(`${mockOrder.timestamp}:${mockOrder.id}`);
@@ -66,9 +66,9 @@ describe('OrderBook Integration Tests', () => {
 
         it('should successfully add a new buy limit order', async () => {
             const mockOrder = await orderBuilder.createLimitOrder(
-                'WETH/USDC',
+                'uSOL/USDC',
                 '1.0',
-                '3000.00',
+                '300.00',
                 OrderSide.BUY,
             );
 
@@ -83,7 +83,7 @@ describe('OrderBook Integration Tests', () => {
             expect(orderExists).toBe(1);
 
             // Verify price level was added
-            const priceLevelKey = `price_levels:WETH/USDC`;
+            const priceLevelKey = `price_levels:uSOL/USDC`;
             const compositeIds = await redisClient.zRangeByScore(priceLevelKey, '-inf', 'inf');
             expect(compositeIds.length).toBe(1);
             expect(compositeIds[0]).toBe(`${mockOrder.timestamp}:${mockOrder.id}`);
@@ -103,39 +103,39 @@ describe('OrderBook Integration Tests', () => {
                 mockOrder6
             ] = await Promise.all([
                 orderBuilder.createLimitOrder(
-                    'WETH/USDC',
+                    'uSOL/USDC',
                     '1.0',
-                    '3100.00',
+                    '310.00',
                     OrderSide.SELL,
                 ),
                 orderBuilder.createLimitOrder(
-                    'WETH/USDC',
+                    'uSOL/USDC',
                     '1.0',
-                    '3099.00',
+                    '309.90',
                     OrderSide.SELL,
                 ),
                 orderBuilder.createLimitOrder(
-                    'WETH/USDC',
+                    'uSOL/USDC',
                     '1.0',
-                    '3098.00',
+                    '309.80',
                     OrderSide.SELL,
                 ),
                 orderBuilder.createLimitOrder(
-                    'WETH/USDC',
+                    'uSOL/USDC',
                     '1.0',
-                    '3097.00',
+                    '309.70',
                     OrderSide.BUY,
                 ),
                 orderBuilder.createLimitOrder(
-                    'WETH/USDC',
+                    'uSOL/USDC',
                     '1.0',
-                    '3096.00',
+                    '309.60',
                     OrderSide.BUY,
                 ),
                 orderBuilder.createLimitOrder(
-                    'WETH/USDC',
+                    'uSOL/USDC',
                     '1.0',
-                    '3095.00',
+                    '309.50',
                     OrderSide.BUY,
                 )
             ]);
@@ -149,16 +149,16 @@ describe('OrderBook Integration Tests', () => {
 
             await new Promise(resolve => setTimeout(resolve, 100));
 
-            const priceLevelKey = `price_levels:WETH/USDC`;
+            const priceLevelKey = `price_levels:uSOL/USDC`;
             const compositeIds = await redisClient.zRangeByScore(priceLevelKey, '-inf', 'inf');
             expect(compositeIds.length).toBe(6);
         });
 
         it('should throw error when adding duplicate order', async () => {
             const mockOrder = await orderBuilder.createLimitOrder(
-                'WETH/USDC',
+                'uSOL/USDC',
                 '1.0',
-                '1800.00',
+                '300.00',
                 OrderSide.SELL,
             );
 
@@ -176,9 +176,9 @@ describe('OrderBook Integration Tests', () => {
     describe('handleCancelLimitOrder', () => {
         it('should successfully cancel an existing limit order', async () => {
             const mockOrder = await orderBuilder.createLimitOrder(
-                'WETH/USDC',
+                'uSOL/USDC',
                 '1',
-                '1800.00',
+                '300.00',
                 OrderSide.SELL,
             );
 
@@ -195,16 +195,16 @@ describe('OrderBook Integration Tests', () => {
             const orderExists = await redisClient.exists(openOrderKey);
             expect(orderExists).toBe(0);
 
-            const priceLevelKey = `price_levels:WETH/USDC`;
+            const priceLevelKey = `price_levels:uSOL/USDC`;
             const priceLevel = await redisClient.zScore(priceLevelKey, mockOrder.id);
             expect(priceLevel).toBeNull();
         });
 
         it('should throw error when cancelling non-existent order', async () => {
             const mockOrder = await orderBuilder.createLimitOrder(
-                'WETH/USDC',
+                'uSOL/USDC',
                 '1',
-                '1800.00',
+                '300.00',
                 OrderSide.SELL,
             );
 
@@ -216,9 +216,9 @@ describe('OrderBook Integration Tests', () => {
 
         it('should throw error when cancelling an inflight order', async () => {
             const mockOrder = await orderBuilder.createLimitOrder(
-                'WETH/USDC',
+                'uSOL/USDC',
                 '1.0',
-                '1800.00',
+                '300.00',
                 OrderSide.SELL,
             );
 
@@ -242,9 +242,9 @@ describe('OrderBook Integration Tests', () => {
         it('should match a market buy order with a single limit sell order', async () => {
             // Create and add a limit sell order
             const limitOrder = await orderBuilder.createLimitOrder(
-                'WETH/USDC',
+                'uSOL/USDC',
                 '1',
-                '1800.00',
+                '300.00',
                 OrderSide.SELL,
             );
             await orderBook.handleOrderRequest({
@@ -254,9 +254,9 @@ describe('OrderBook Integration Tests', () => {
 
             // Create a market buy order
             const marketOrder = await orderBuilder.createMarketOrder(
-                'WETH/USDC',
+                'uSOL/USDC',
                 '1',
-                '1800.00',
+                '300.00',
                 OrderSide.BUY,
             );
 
@@ -276,15 +276,15 @@ describe('OrderBook Integration Tests', () => {
         it('should partially fill a market buy order with multiple limit sell orders', async () => {
             // Create and add multiple limit sell orders at different price levels
             const limitOrder1 = await orderBuilder.createLimitOrder(
-                'WETH/USDC',
+                'uSOL/USDC',
                 '1',
-                '1800.00',
+                '200.00',
                 OrderSide.SELL,
             );
             const limitOrder2 = await orderBuilder.createLimitOrder(
-                'WETH/USDC',
+                'uSOL/USDC',
                 '1',
-                '1850.00',
+                '210.00',
                 OrderSide.SELL,
             );
             await orderBook.handleOrderRequest({
@@ -298,9 +298,9 @@ describe('OrderBook Integration Tests', () => {
 
             // Create a market buy order for more than available at best price
             const marketOrder = await orderBuilder.createMarketOrder(
-                'WETH/USDC',
+                'uSOL/USDC',
                 '2',
-                '1900.00',
+                '220.00',
                 OrderSide.BUY,
             );
 
@@ -320,9 +320,9 @@ describe('OrderBook Integration Tests', () => {
         it('should not match orders above market order price limit', async () => {
             // Create a limit sell order above market order's max price
             const limitOrder = await orderBuilder.createLimitOrder(
-                'WETH/USDC',
+                'uSOL/USDC',
                 '1',
-                '2000.00',
+                '200.00',
                 OrderSide.SELL,
             );
             await orderBook.handleOrderRequest({
@@ -332,9 +332,9 @@ describe('OrderBook Integration Tests', () => {
 
             // Create a market buy order with lower max price
             const marketOrder = await orderBuilder.createMarketOrder(
-                'WETH/USDC',
+                'uSOL/USDC',
                 '1',
-                '1900.00',
+                '190.00',
                 OrderSide.BUY,
             );
 
@@ -350,9 +350,9 @@ describe('OrderBook Integration Tests', () => {
         it('should match market sell order with limit buy orders', async () => {
             // Create and add a limit buy order
             const limitOrder = await orderBuilder.createLimitOrder(
-                'WETH/USDC',
+                'uSOL/USDC',
                 '1',
-                '1800.00',
+                '180.00',
                 OrderSide.BUY,
             );
             await orderBook.handleOrderRequest({
@@ -362,9 +362,9 @@ describe('OrderBook Integration Tests', () => {
 
             // Create a market sell order
             const marketOrder = await orderBuilder.createMarketOrder(
-                'WETH/USDC',
+                'uSOL/USDC',
                 '1',
-                '1700.00', // Willing to sell at this price or higher
+                '170.00', // Willing to sell at this price or higher
                 OrderSide.SELL,
             );
 
@@ -381,9 +381,9 @@ describe('OrderBook Integration Tests', () => {
         it('should skip expired limit orders during matching', async () => {
             // Create an expired limit order
             const expiredOrder = await orderBuilder.createLimitOrder(
-                'WETH/USDC',
+                'uSOL/USDC',
                 '1',
-                '1800.00',
+                '180.00',
                 OrderSide.SELL,
                 orderDeadline(-1) // Expired 1 hour ago
             );
@@ -394,9 +394,9 @@ describe('OrderBook Integration Tests', () => {
 
             // Create a valid limit order
             const validOrder = await orderBuilder.createLimitOrder(
-                'WETH/USDC',
+                'uSOL/USDC',
                 '1',
-                '1850.00',
+                '185.00',
                 OrderSide.SELL,
             );
             await orderBook.handleOrderRequest({
@@ -406,9 +406,9 @@ describe('OrderBook Integration Tests', () => {
 
             // Create a market buy order
             const marketOrder = await orderBuilder.createMarketOrder(
-                'WETH/USDC',
+                'uSOL/USDC',
                 '1',
-                '1900.00',
+                '190.00',
                 OrderSide.BUY,
             );
 
@@ -425,9 +425,9 @@ describe('OrderBook Integration Tests', () => {
         it('should match orders based on price-time priority', async () => {
             // Create multiple limit orders at same price
             const limitOrder1 = await orderBuilder.createLimitOrder(
-                'WETH/USDC',
+                'uSOL/USDC',
                 '1',
-                '1800.00',
+                '180.00',
                 OrderSide.SELL,
             );
             await orderBook.handleOrderRequest({
@@ -438,9 +438,9 @@ describe('OrderBook Integration Tests', () => {
             await new Promise(resolve => setTimeout(resolve, 100));
 
             const limitOrder2 = await orderBuilder.createLimitOrder(
-                'WETH/USDC',
+                'uSOL/USDC',
                 '1',
-                '1800.00',
+                '180.00',
                 OrderSide.SELL,
             );
             await orderBook.handleOrderRequest({
@@ -450,9 +450,9 @@ describe('OrderBook Integration Tests', () => {
 
             // Create a market buy order
             const marketOrder = await orderBuilder.createMarketOrder(
-                'WETH/USDC',
+                'uSOL/USDC',
                 '1',
-                '1800.00',
+                '180.00',
                 OrderSide.BUY,
             );
 
