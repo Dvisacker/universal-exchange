@@ -3,7 +3,7 @@ import { MakerOrder, OrderSide, OrderType, TakerOrder } from '../types/order';
 import { keccak256, AbiCoder } from 'ethers';
 import { defaultMaxListeners } from 'events';
 import { Signer } from 'ethers';
-import { defaultDeadline, generateSalt, toWei } from '../utils';
+import { orderDeadline, generateSalt, toWei } from '../utils';
 import { MarketInfo, MarketsByTicker, TickersByTokenPair } from '../types/markets';
 
 export const DOMAIN: TypedDataDomain = {
@@ -103,7 +103,7 @@ export class OrderBuilder {
         amount: string,
         priceLevel: string,
         side: OrderSide,
-        deadline: number = defaultDeadline()
+        deadline: number = orderDeadline()
     ): Promise<MakerOrder> {
         const market = this.getMarketInfo(marketPair);
         const baseAmountInWei = toWei(amount, market.baseDecimals);
@@ -145,7 +145,7 @@ export class OrderBuilder {
         amount: string,
         priceLevel: string,
         side: OrderSide,
-        deadline: number = defaultDeadline(),
+        deadline: number = orderDeadline(),
     ): Promise<TakerOrder> {
         const market = this.getMarketInfo(marketPair);
         const baseAmountInWei = toWei(amount, market.baseDecimals);

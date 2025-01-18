@@ -1,10 +1,10 @@
-import { OrderBook } from '../../services/orderbook';
-import { OrderSide } from '../../types/order';
-import { createClient } from 'redis';
-import { OrderBuilder } from '../../services/order-builder';
 import { Wallet } from 'ethers';
-import { deadline } from '../../utils';
+import { createClient } from 'redis';
+import { OrderBook } from '../../services/orderbook';
 import { MarketsByTicker } from '../../types/markets';
+import { OrderSide } from '../../types/order';
+import { orderDeadline } from '../../utils';
+import { OrderBuilder } from '../../utils/order-builder';
 describe('OrderBook Integration Tests', () => {
     let orderBook: OrderBook;
     let redisClient: ReturnType<typeof createClient>;
@@ -328,7 +328,7 @@ describe('OrderBook Integration Tests', () => {
                 '1',
                 '1800.00',
                 OrderSide.SELL,
-                deadline(-1) // Expired 1 hour ago
+                orderDeadline(-1) // Expired 1 hour ago
             );
             await orderBook.handleNewLimitOrder(expiredOrder);
 

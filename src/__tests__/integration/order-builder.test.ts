@@ -1,8 +1,8 @@
-import { DOMAIN, MAKER_ORDER_TYPE, OrderBuilder, TAKER_ORDER_TYPE } from '../../services/order-builder';
-import { OrderSide } from '../../types/order';
 import { verifyTypedData, Wallet } from 'ethers';
-import { defaultDeadline } from '../../utils';
 import { MarketsByTicker } from '../../types/markets';
+import { OrderSide } from '../../types/order';
+import { orderDeadline } from '../../utils';
+import { DOMAIN, MAKER_ORDER_TYPE, OrderBuilder, TAKER_ORDER_TYPE } from '../../utils/order-builder';
 
 describe('OrderClient Integration Tests', () => {
     let builder: OrderBuilder;
@@ -29,7 +29,7 @@ describe('OrderClient Integration Tests', () => {
             const baseAmount = '1'
             const priceLevel = '1800.00';
             const side = OrderSide.SELL;
-            const deadline = defaultDeadline()
+            const deadline = orderDeadline()
 
             const order = await builder.createLimitOrder(
                 'WETH/USDC',
@@ -91,7 +91,7 @@ describe('OrderClient Integration Tests', () => {
             const baseAmount = '1';
             const priceLevel = '1800.00';
             const side = OrderSide.SELL;
-            const deadline = defaultDeadline();
+            const deadline = orderDeadline();
             const order = await builder.createMarketOrder(
                 'WETH/USDC',
                 baseAmount,

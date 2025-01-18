@@ -1,10 +1,9 @@
 import { ethers } from 'ethers';
-import { Executor } from '../../services/executor';
-import { OrderMatch, OrderSide } from '../../types/order';
-import { Settlement, MockERC20 } from '../../types/contracts';
 import hre from 'hardhat';
-import { JsonRpcProvider } from 'ethers';
-import { deadline, defaultDeadline, generateSalt, toWei } from '../../utils';
+import { Executor } from '../../services/executor';
+import { MockERC20, Settlement } from '../../types/contracts';
+import { OrderMatch, OrderSide } from '../../types/order';
+import { orderDeadline, generateSalt, toWei } from '../../utils';
 
 // Define the domain and types for signing
 const DOMAIN = {
@@ -39,17 +38,14 @@ describe('Executor Integration Tests', () => {
         // Update domain with settlement contract address
         DOMAIN.verifyingContract = await settlement.getAddress();
 
-        // Initialize executor
         executor = new Executor(
             provider,
             exchange,
             settlement.target.toString()
         );
 
-        // Setup sample match data
         makerAddress = await maker.getAddress();
         takerAddress = await taker.getAddress();
-        // Mint and approve tokens
         await weth.mint(makerAddress, ethers.parseEther('100')); // 100 WETH
         await usdc.mint(takerAddress, ethers.parseUnits('200000', 6)); // 200,000 USDC
         await weth.connect(maker).approve(settlement.target, ethers.MaxUint256);
@@ -80,7 +76,7 @@ describe('Executor Integration Tests', () => {
             quoteAmountFilled: toWei("1800", 6),
             makerSignature: '0x',
             makerTimestamp: Date.now(),
-            makerDeadline: defaultDeadline(),
+            makerDeadline: orderDeadline(),
             makerSalt: generateSalt(),
             makerSide: OrderSide.SELL,
             taker: takerAddress,
@@ -162,7 +158,7 @@ describe('Executor Integration Tests', () => {
     it('should fail to execute trade with expired maker deadline', async () => {
         const expiredMatch = {
             ...sampleMatch,
-            makerDeadline: deadline(-1)
+            makerDeadline: orderDeadline(-1)
         };
 
         const result = await executor.simulateTrade(expiredMatch);

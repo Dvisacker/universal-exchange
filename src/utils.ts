@@ -20,7 +20,6 @@ export function calculateQuoteAmount(
     // Convert price level to BigInt with extra precision
     const PRICE_PRECISION = 18;
     const priceInWei = parseUnits(priceLevel, PRICE_PRECISION);
-    // console.log(priceInWei, baseAmount, quoteDecimals, baseDecimals);
 
     // Formula: quoteAmount = baseAmount * price * (10^quoteDecimals) / (10^(baseDecimals + PRICE_PRECISION))
     const quoteAmount = (
@@ -81,14 +80,17 @@ export const generateSalt = (): string => {
  * @param hours - Number of hours from now (default: 1)
  * @returns Future timestamp as a bigint
  */
-export const deadline = (hours = 1): number => {
+export const orderDeadline = (hours = 1): number => {
     return Date.now() + hours * 3600 * 1000;
 };
 
-export const defaultDeadline = (hours = 1): number => {
-    return Date.now() + hours * 3600000;
-};
-
+/**
+ * Polls for a transaction receipt until it is found or the maximum number of attempts is reached
+ * @param provider - The Ethereum provider
+ * @param txHash - The transaction hash to poll for
+ * @param maxAttempts - The maximum number of attempts to poll for the receipt (default: 10)
+ * @returns The transaction receipt if found, otherwise throws an error
+ */
 export const pollForReceipt = async (provider: Provider, txHash: string, maxAttempts: number = 10) => {
     for (let i = 0; i < maxAttempts; i++) {
         const receipt = await provider.getTransactionReceipt(txHash);

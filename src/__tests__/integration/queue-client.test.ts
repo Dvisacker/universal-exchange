@@ -1,17 +1,16 @@
-import { QueueClient } from '../../clients/queue-client';
-import { OrderBuilder } from '../../services/order-builder';
-import { OrderBook } from '../../services/orderbook';
-import { OrderSide } from '../../types/order';
-import { createClient } from 'redis';
-import { Settlement } from '../../types/contracts';
+import { Provider } from 'ethers';
 import hre from 'hardhat';
-import { MockERC20 } from '../../types/contracts';
-import { deadline, toWei } from '../../utils';
+import "@nomicfoundation/hardhat-ethers";
+import { createClient } from 'redis';
+import { QueueClient } from '../../clients/queue-client';
 import { ExchangeQueue } from '../../services/exchange-queue';
-import { Provider, JsonRpcProvider } from 'ethers';
 import { Executor } from '../../services/executor';
+import { OrderBook } from '../../services/orderbook';
+import { MockERC20, Settlement } from '../../types/contracts';
 import { MarketsByTicker } from '../../types/markets';
-import { network } from 'hardhat';
+import { OrderSide } from '../../types/order';
+import { orderDeadline, toWei } from '../../utils';
+import { OrderBuilder } from '../../utils/order-builder';
 
 describe('QueueClient Integration Tests', () => {
     let queueClient: QueueClient;
@@ -81,9 +80,9 @@ describe('QueueClient Integration Tests', () => {
             let initialTakerUsdcDeposit = await settlement.deposits(taker.address, usdc.target);
 
             // maker sells 1 ETH for 3000 USDC
-            const limitOrder = await makerOrderBuilder.createLimitOrder('WETH/USDC', '1', '3000.00', OrderSide.SELL, deadline());
+            const limitOrder = await makerOrderBuilder.createLimitOrder('WETH/USDC', '1', '3000.00', OrderSide.SELL, orderDeadline());
             // taker buys 1 ETH for 3000 USDC (min received)
-            const marketOrder = await takerOrderBuilder.createMarketOrder('WETH/USDC', '1', '3000.00', OrderSide.BUY, deadline());
+            const marketOrder = await takerOrderBuilder.createMarketOrder('WETH/USDC', '1', '3000.00', OrderSide.BUY, orderDeadline());
 
             queueClient.submitLimitOrder(limitOrder);
             queueClient.submitMarketOrder(marketOrder);
