@@ -1,9 +1,8 @@
-import { Wallet, TypedDataDomain } from 'ethers';
+import { TypedDataDomain } from 'ethers';
 import { MakerOrder, OrderSide, OrderType, TakerOrder } from '../types/order';
 import { keccak256, AbiCoder } from 'ethers';
-import { defaultMaxListeners } from 'events';
 import { Signer } from 'ethers';
-import { orderDeadline, generateSalt, toWei } from '../utils';
+import { orderDeadline, generateSalt, toWei } from './helpers';
 import { MarketInfo, MarketsByTicker, TickersByTokenPair } from '../types/markets';
 
 export const DOMAIN: TypedDataDomain = {

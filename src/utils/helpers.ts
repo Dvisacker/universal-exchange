@@ -1,7 +1,7 @@
 import { formatUnits, parseUnits } from 'ethers';
 import { solidityPackedKeccak256 } from 'ethers'
-import { TakerOrder } from './types/order';
-import { MakerOrder } from './types/order';
+import { TakerOrder } from '../types/order';
+import { MakerOrder } from '../types/order';
 import { Provider } from 'ethers';
 /**
  * Calculates the quote token amount based on the base amount and price level

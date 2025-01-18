@@ -3,7 +3,7 @@ import hre from 'hardhat';
 import { Executor } from '../../services/executor';
 import { MockERC20, Settlement } from '../../types/contracts';
 import { OrderMatch, OrderSide } from '../../types/order';
-import { orderDeadline, generateSalt, toWei } from '../../utils';
+import { orderDeadline, generateSalt, toWei } from '../../utils/helpers';
 
 // Define the domain and types for signing
 const DOMAIN = {

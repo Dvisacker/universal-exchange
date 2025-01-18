@@ -37,9 +37,21 @@ This is a very simplified diagram.
 
 ## Prerequisites
 
-- Node.js
-- Redis
-- Ethereum node (for deployment and testing)
+- Node, Redis (you can use the docker-compose)
+
+## How to use 
+
+- Currently, i've only tested the codebase through integration tests 
+
+```bash
+npm run test
+```
+
+or 
+
+```bash
+npm run test:quiet
+```
 
 ## Environment Variables
 
@@ -60,14 +72,4 @@ npm run compile
 
 # Run tests
 npm test
-```
-
-## Testing
-
-```bash
-# Run tests in watch mode
-npm run test:watch
-
-# Run tests without logs
-npm run test:quiet
 ```

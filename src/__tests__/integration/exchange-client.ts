@@ -9,7 +9,7 @@ import { OrderBook } from '../../services/orderbook';
 import { MockERC20, Settlement } from '../../types/contracts';
 import { MarketsByTicker } from '../../types/markets';
 import { OrderSide } from '../../types/order';
-import { orderDeadline, toWei } from '../../utils';
+import { orderDeadline, toWei } from '../../utils/helpers';
 import { OrderBuilder } from '../../utils/order-builder';
 
 describe('ExchangeClient Integration Tests', () => {

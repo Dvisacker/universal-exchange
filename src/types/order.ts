@@ -143,7 +143,6 @@ export type PendingTradeMessage = z.infer<typeof pendingTradeMessageSchema>;
 export type ConfirmedTradeMessage = z.infer<typeof confirmedTradeMessageSchema>;
 export type FailedTradeMessage = z.infer<typeof failedTradeMessageSchema>;
 
-// Export schemas for runtime validation
 export const schemas = {
     makerOrder: makerOrderSchema,
     takerOrder: takerOrderSchema,
@@ -154,8 +153,8 @@ export const schemas = {
     failedTradeMessage: failedTradeMessageSchema
 };
 
+
 export function makerOrderToMap(order: MakerOrder): Map<string, string> {
-    // Validate the order
     schemas.makerOrder.parse(order);
 
     const orderMap = new Map<string, string>();
@@ -196,12 +195,10 @@ export function makerOrderToObject(order: { [key: string]: string }): MakerOrder
         deadline: +order.deadline,
     };
 
-    // Validate and return the parsed order
     return schemas.makerOrder.parse(makerOrder);
 }
 
 export function takerOrderToMap(order: TakerOrder): Map<string, string> {
-    // Validate the order
     schemas.takerOrder.parse(order);
 
     const orderMap = new Map<string, string>();
@@ -238,12 +235,10 @@ export function takerOrderToObject(order: { [key: string]: string }): TakerOrder
         type: order.type,
     };
 
-    // Validate and return the parsed order
     return schemas.takerOrder.parse(takerOrder);
 }
 
 export function orderMatchToMap(order: OrderMatch): Map<string, string> {
-    // Validate the order match
     schemas.orderMatch.parse(order);
 
     const orderMap = new Map<string, string>();

@@ -1,7 +1,7 @@
 import { verifyTypedData, Wallet } from 'ethers';
 import { MarketsByTicker } from '../../types/markets';
 import { OrderSide } from '../../types/order';
-import { orderDeadline } from '../../utils';
+import { orderDeadline } from '../../utils/helpers';
 import { DOMAIN, MAKER_ORDER_TYPE, OrderBuilder, TAKER_ORDER_TYPE } from '../../utils/order-builder';
 
 describe('OrderClient Integration Tests', () => {
