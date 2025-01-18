@@ -2,21 +2,25 @@ import { createClient } from 'redis';
 import { QueueClient } from './clients/queue-client';
 import { OrderBook } from './services/orderbook';
 import { ExchangeQueue } from './services/exchange-queue';
-import { ethers } from 'hardhat';
-import { Provider, JsonRpcProvider } from 'ethers';
+import { isAddress, JsonRpcProvider, Wallet } from 'ethers';
 import { Logger } from './utils/logger';
 import { Executor } from './services/executor';
 import { MarketsByTicker } from './types/markets';
+import * as dotenv from 'dotenv';
+
+dotenv.config();
 
 function validateEnvironment(): {
     SETTLEMENT_CONTRACT_ADDRESS: string;
     RPC_URL: string;
     REDIS_URL: string;
+    PRIVATE_KEY: string;
 } {
     const required = [
         'SETTLEMENT_CONTRACT_ADDRESS',
         'RPC_URL',
-        'REDIS_URL'
+        'REDIS_URL',
+        'PRIVATE_KEY'
     ] as const;
 
     const missing = required.filter(key => !process.env[key]);
@@ -26,17 +30,15 @@ function validateEnvironment(): {
             'Please set these variables in your environment or .env file');
     }
 
-    // Validate contract address format
-    if (!process.env.SETTLEMENT_CONTRACT_ADDRESS?.startsWith('0x') ||
-        process.env.SETTLEMENT_CONTRACT_ADDRESS.length !== 42) {
+    if (!isAddress(process.env.SETTLEMENT_CONTRACT_ADDRESS!)) {
         throw new Error('SETTLEMENT_CONTRACT_ADDRESS must be a valid Ethereum address');
     }
 
-    // After validation, we can safely assert these exist
     return {
         SETTLEMENT_CONTRACT_ADDRESS: process.env.SETTLEMENT_CONTRACT_ADDRESS,
         RPC_URL: process.env.RPC_URL!,
-        REDIS_URL: process.env.REDIS_URL!
+        REDIS_URL: process.env.REDIS_URL!,
+        PRIVATE_KEY: process.env.PRIVATE_KEY!
     };
 }
 
@@ -45,9 +47,9 @@ async function main() {
         // Validate environment variables first
         const env = validateEnvironment();
 
-        // Initialize provider
+        // Initialize provider and signer
         const provider = new JsonRpcProvider(env.RPC_URL);
-        const [exchangeSigner] = await ethers.getSigners();
+        const exchangeSigner = new Wallet(env.PRIVATE_KEY, provider);
 
         // Initialize Redis
         const redisClient = createClient({
@@ -79,7 +81,7 @@ async function main() {
 
         // Set up graceful shutdown
         const shutdown = async () => {
-            Logger.info('Shutting down exchange...');
+            Logger.warn('Shutting down exchange...');
             await queueClient.close();
             await redisClient.quit();
             process.exit(0);
@@ -92,19 +94,14 @@ async function main() {
         Logger.info('Exchange initialized successfully');
         Logger.info(`Settlement contract: ${env.SETTLEMENT_CONTRACT_ADDRESS}`);
         Logger.info(`Exchange address: ${exchangeSigner.address}`);
-        Logger.info(`Connected to RPC: ${env.RPC_URL}`);
-        Logger.info(`Connected to Redis: ${env.REDIS_URL}`);
 
     } catch (error) {
-        Logger.error('Failed to initialize exchange:', error instanceof Error ? error : new Error(String(error)));
+        Logger.error(error as Error);
         process.exit(1);
     }
 }
 
-// Ensure environment variables are loaded before starting
-if (require.main === module) {
-    main().catch((error) => {
-        Logger.error('Unhandled error:', error instanceof Error ? error : new Error(String(error)));
-        process.exit(1);
-    });
-}
+main().catch((error) => {
+    Logger.error(error);
+    process.exit(1);
+});
