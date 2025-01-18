@@ -1,7 +1,12 @@
 import { OrderMessage, OrderAction, MakerOrder, TakerOrder, TradeMessage, ConfirmedTxMessage } from '../types/order';
 import Queue from 'bull';
 
-export class QueueClient {
+export enum Priority {
+    HIGH = 1,
+    LOW = 2,
+}
+
+export class ExchangeClient {
     public orderQueue: Queue.Queue<OrderMessage>;
     public scheduledTxQueue: Queue.Queue<TradeMessage>;
     public confirmedTxQueue: Queue.Queue<ConfirmedTxMessage>;
@@ -21,6 +26,8 @@ export class QueueClient {
         const job = await this.orderQueue.add({
             action: OrderAction.NEW_LIMIT_ORDER,
             payload: { order }
+        }, {
+            priority: Priority.HIGH,
         });
         return job.id.toString();
     }
@@ -34,6 +41,8 @@ export class QueueClient {
         const job = await this.orderQueue.add({
             action: OrderAction.NEW_MARKET_ORDER,
             payload: { order }
+        }, {
+            priority: Priority.LOW,
         });
         return job.id.toString();
     }
@@ -42,11 +51,15 @@ export class QueueClient {
      * Cancel a limit order
      * @param order The limit order to cancel
      * @returns The job ID of the cancellation request
+     * 
+     * Cancelling orders should be prioritized over new orders
      */
     async cancelLimitOrder(order: MakerOrder): Promise<string> {
         const job = await this.orderQueue.add({
             action: OrderAction.CANCEL_LIMIT_ORDER,
             payload: { order }
+        }, {
+            priority: Priority.HIGH,
         });
         return job.id.toString();
     }

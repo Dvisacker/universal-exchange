@@ -6,7 +6,7 @@ import { ethers } from 'ethers';
 import { pollForReceipt } from '../utils';
 import { z } from 'zod';
 
-export class ExchangeQueue {
+export class Exchange {
     private provider: ethers.Provider;
     public orderQueue: Queue.Queue<OrderMessage>;
     public scheduledTxQueue: Queue.Queue<TradeMessage>;
@@ -14,6 +14,10 @@ export class ExchangeQueue {
     private orderbook: OrderBook;
     private executor: Executor;
 
+    /* 
+    - TODO: Use different orderbooks/queues for each market
+    - TODO: Use different executors/signers for each market
+    */
     constructor(orderbook: OrderBook, executor: Executor, provider: ethers.Provider) {
         this.provider = provider;
         this.orderQueue = new Queue<OrderMessage>('orders');
@@ -22,12 +26,11 @@ export class ExchangeQueue {
         this.orderbook = orderbook;
         this.executor = executor;
 
-        // Process orders from the orderbook queue
+        // TODO: I believe bull processes jobs sequentially 1 by 1 by default but still needs to be tested
         this.orderQueue.process(async (job: Job<OrderMessage>, done: Queue.DoneCallback) => {
             try {
                 const request = job.data;
                 const matches = await this.orderbook.handleOrderRequest(request);
-                // For market orders get matched, send them to the scheduled tx queue
                 if (request.action === OrderAction.NEW_MARKET_ORDER && z.array(schemas.orderMatch).safeParse(matches).success) {
                     for (const match of matches) {
                         const canExecute = await this.executor.simulateTrade(match);
@@ -57,16 +60,17 @@ export class ExchangeQueue {
 
         An additional solution is also to batch trades on the same block
         and same pair.
+
+        TODO: 
+        - Batch trades - probably with a multicall
         .*/
-        this.scheduledTxQueue.process(async (job: Job<TradeMessage>, done: Queue.DoneCallback) => {
+        this.scheduledTxQueue.process(20, async (job: Job<TradeMessage>, done: Queue.DoneCallback) => {
             const request = job.data;
             if (request.action === OrderAction.TRADE && request.payload.match) {
                 const match = request.payload.match;
                 try {
-                    // Execute the trade on-chain
                     const txHash = await this.executor.trade(match);
 
-                    // Add to confirmed tx queue for monitoring
                     await this.confirmedTxQueue.add({
                         action: OrderAction.CONFIRMED_TX,
                         payload: { txHash, match }
@@ -74,7 +78,6 @@ export class ExchangeQueue {
                     done(null, { success: true, txHash });
                 } catch (error) {
                     console.log(error)
-                    // If the trade fails, remove it from the inflight orders
                     await this.orderbook.removeInflightOrder(match.takerOrderId);
                     done(error as Error);
                 }
@@ -82,7 +85,7 @@ export class ExchangeQueue {
         });
 
         // Process confirmed transactions
-        this.confirmedTxQueue.process(async (job: Job<ConfirmedTxMessage>, done: Queue.DoneCallback) => {
+        this.confirmedTxQueue.process(20, async (job: Job<ConfirmedTxMessage>, done: Queue.DoneCallback) => {
             const request = job.data;
             if (request.action === OrderAction.CONFIRMED_TX && request.payload.match) {
                 const { match, txHash } = request.payload;
@@ -94,18 +97,15 @@ export class ExchangeQueue {
                     const receipt = await pollForReceipt(this.provider, txHash);
 
                     if (!receipt) {
-                        await this.orderbook.removeInflightOrder(match.takerOrderId);
                         throw new Error(`Transaction receipt not found: ${txHash}`);
                     }
 
                     if (receipt.status === 0) {
-                        await this.orderbook.removeInflightOrder(match.takerOrderId);
                         throw new Error(`Transaction failed: ${txHash}`);
                     }
 
                     done(null, { success: true, receipt });
                 } catch (error) {
-                    // If monitoring fails, remove the order from inflight state
                     await this.orderbook.removeInflightOrder(match.takerOrderId);
                     done(error as Error);
                 }

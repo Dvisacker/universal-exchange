@@ -2,8 +2,8 @@ import { Provider } from 'ethers';
 import hre from 'hardhat';
 import "@nomicfoundation/hardhat-ethers";
 import { createClient } from 'redis';
-import { QueueClient } from '../../clients/queue-client';
-import { ExchangeQueue } from '../../services/exchange-queue';
+import { ExchangeClient } from '../../clients/exchange-client';
+import { Exchange } from '../../services/exchange';
 import { Executor } from '../../services/executor';
 import { OrderBook } from '../../services/orderbook';
 import { MockERC20, Settlement } from '../../types/contracts';
@@ -12,8 +12,8 @@ import { OrderSide } from '../../types/order';
 import { orderDeadline, toWei } from '../../utils';
 import { OrderBuilder } from '../../utils/order-builder';
 
-describe('QueueClient Integration Tests', () => {
-    let queueClient: QueueClient;
+describe('ExchangeClient Integration Tests', () => {
+    let exchangeClient: ExchangeClient;
     let orderBook: OrderBook;
     let redisClient: ReturnType<typeof createClient>;
     let settlement: Settlement;
@@ -56,7 +56,7 @@ describe('QueueClient Integration Tests', () => {
         orderBook = new OrderBook(marketsByTicker);
         makerOrderBuilder = new OrderBuilder(maker, marketsByTicker);
         takerOrderBuilder = new OrderBuilder(taker, marketsByTicker);
-        queueClient = new QueueClient();
+        exchangeClient = new ExchangeClient();
         executor = new Executor(provider, exchange, settlementContractAddress);
 
     });
@@ -69,7 +69,7 @@ describe('QueueClient Integration Tests', () => {
         it('should execute a trade', async () => {
             await hre.network.provider.send("evm_setAutomine", [true]);
             let [exchange, maker, taker] = await hre.ethers.getSigners();
-            const exchangeQueue = new ExchangeQueue(orderBook, executor, provider);
+            const exchangeQueue = new Exchange(orderBook, executor, provider);
 
             let tx = await settlement.connect(maker).deposit(weth.target.toString(), toWei("100", 18));
             tx = await settlement.connect(taker).deposit(usdc.target.toString(), toWei("200000", 6));
@@ -84,8 +84,8 @@ describe('QueueClient Integration Tests', () => {
             // taker buys 1 ETH for 3000 USDC (min received)
             const marketOrder = await takerOrderBuilder.createMarketOrder('WETH/USDC', '1', '3000.00', OrderSide.BUY, orderDeadline());
 
-            queueClient.submitLimitOrder(limitOrder);
-            queueClient.submitMarketOrder(marketOrder);
+            exchangeClient.submitLimitOrder(limitOrder);
+            exchangeClient.submitMarketOrder(marketOrder);
 
             let confirmedTxQueueResult = await new Promise<any>((resolve) => {
                 exchangeQueue.confirmedTxQueue.on('completed', (job, result) => {

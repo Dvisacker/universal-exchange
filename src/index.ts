@@ -1,7 +1,6 @@
 import { createClient } from 'redis';
-import { QueueClient } from './clients/queue-client';
 import { OrderBook } from './services/orderbook';
-import { ExchangeQueue } from './services/exchange-queue';
+import { Exchange } from './services/exchange';
 import { isAddress, JsonRpcProvider, Wallet } from 'ethers';
 import { Logger } from './utils/logger';
 import { Executor } from './services/executor';
@@ -71,9 +70,8 @@ async function main() {
 
         // Initialize core services
         const orderBook = new OrderBook(marketsByTicker);
-        const queueClient = new QueueClient();
         const executor = new Executor(provider, exchangeSigner, env.SETTLEMENT_CONTRACT_ADDRESS);
-        const exchangeQueue = new ExchangeQueue(
+        const exchange = new Exchange(
             orderBook,
             executor,
             provider
@@ -82,7 +80,6 @@ async function main() {
         // Set up graceful shutdown
         const shutdown = async () => {
             Logger.warn('Shutting down exchange...');
-            await queueClient.close();
             await redisClient.quit();
             process.exit(0);
         };
