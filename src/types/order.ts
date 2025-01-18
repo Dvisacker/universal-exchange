@@ -15,8 +15,9 @@ export enum OrderAction {
     CANCEL_LIMIT_ORDER = 'CANCEL_LIMIT_ORDER',
     NEW_MARKET_ORDER = 'NEW_MARKET_ORDER',
     CANCEL_MARKET_ORDER = 'CANCEL_MARKET_ORDER',
-    TRADE = 'TRADE',
-    CONFIRMED_TX = 'CONFIRMED_TX'
+    PENDING_TRADE = 'PENDING_TRADE',
+    CONFIRMED_TRADE = 'CONFIRMED_TRADE',
+    FAILED_TRADE = 'FAILED_TRADE'
 }
 
 const makerOrderSchema = z.object({
@@ -74,39 +75,73 @@ const orderMatchSchema = z.object({
     takerSalt: z.string()
 });
 
-const orderMessageSchema = z.object({
-    action: z.enum([
-        OrderAction.NEW_LIMIT_ORDER,
-        OrderAction.CANCEL_LIMIT_ORDER,
-        OrderAction.NEW_MARKET_ORDER,
-        OrderAction.CANCEL_MARKET_ORDER
-    ]),
+const makerOrderMessageSchema = z.object({
+    action: z.literal(OrderAction.NEW_LIMIT_ORDER),
     payload: z.object({
-        order: z.union([makerOrderSchema, takerOrderSchema])
+        order: makerOrderSchema
     })
 });
 
-const tradeMessageSchema = z.object({
-    action: z.literal(OrderAction.TRADE),
+const takerOrderMessageSchema = z.object({
+    action: z.literal(OrderAction.NEW_MARKET_ORDER),
+    payload: z.object({
+        order: takerOrderSchema
+    })
+});
+
+const cancelLimitOrderMessageSchema = z.object({
+    action: z.literal(OrderAction.CANCEL_LIMIT_ORDER),
+    payload: z.object({
+        order: makerOrderSchema
+    })
+});
+
+const orderMatchMessageSchema = z.object({
+    action: z.literal(OrderAction.PENDING_TRADE),
     payload: z.object({
         match: orderMatchSchema
     })
 });
 
-const confirmedTxMessageSchema = z.object({
-    action: z.literal(OrderAction.CONFIRMED_TX),
+const pendingTradeMessageSchema = z.object({
+    action: z.literal(OrderAction.PENDING_TRADE),
+    payload: z.object({
+        match: orderMatchSchema
+    })
+});
+
+const confirmedTradeMessageSchema = z.object({
+    action: z.literal(OrderAction.CONFIRMED_TRADE),
     payload: z.object({
         txHash: z.string(),
         match: orderMatchSchema
     })
 });
 
+const failedTradeMessageSchema = z.object({
+    action: z.literal(OrderAction.FAILED_TRADE),
+    payload: z.object({
+        match: orderMatchSchema
+    })
+});
+
+const orderMessageSchema = z.union([
+    makerOrderMessageSchema,
+    takerOrderMessageSchema,
+    cancelLimitOrderMessageSchema,
+    orderMatchMessageSchema,
+    pendingTradeMessageSchema,
+    confirmedTradeMessageSchema,
+    failedTradeMessageSchema
+]);
+
 export type MakerOrder = z.infer<typeof makerOrderSchema>;
 export type TakerOrder = z.infer<typeof takerOrderSchema>;
 export type OrderMatch = z.infer<typeof orderMatchSchema>;
 export type OrderMessage = z.infer<typeof orderMessageSchema>;
-export type TradeMessage = z.infer<typeof tradeMessageSchema>;
-export type ConfirmedTxMessage = z.infer<typeof confirmedTxMessageSchema>;
+export type PendingTradeMessage = z.infer<typeof pendingTradeMessageSchema>;
+export type ConfirmedTradeMessage = z.infer<typeof confirmedTradeMessageSchema>;
+export type FailedTradeMessage = z.infer<typeof failedTradeMessageSchema>;
 
 // Export schemas for runtime validation
 export const schemas = {
@@ -114,8 +149,9 @@ export const schemas = {
     takerOrder: takerOrderSchema,
     orderMatch: orderMatchSchema,
     orderMessage: orderMessageSchema,
-    tradeMessage: tradeMessageSchema,
-    confirmedTxMessage: confirmedTxMessageSchema
+    pendingTradeMessage: pendingTradeMessageSchema,
+    confirmedTradeMessage: confirmedTradeMessageSchema,
+    failedTradeMessage: failedTradeMessageSchema
 };
 
 export function makerOrderToMap(order: MakerOrder): Map<string, string> {

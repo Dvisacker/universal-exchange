@@ -1,4 +1,4 @@
-import { OrderMessage, TradeMessage, ConfirmedTxMessage, OrderAction, OrderMatch, schemas } from '../types/order';
+import { OrderMessage, OrderAction, OrderMatch, schemas, ConfirmedTradeMessage, PendingTradeMessage } from '../types/order';
 import { OrderBook } from './orderbook';
 import { Executor } from './executor';
 import Queue, { Job } from 'bull';
@@ -9,8 +9,8 @@ import { z } from 'zod';
 export class Exchange {
     private provider: ethers.Provider;
     public orderQueue: Queue.Queue<OrderMessage>;
-    public scheduledTxQueue: Queue.Queue<TradeMessage>;
-    public confirmedTxQueue: Queue.Queue<ConfirmedTxMessage>;
+    public scheduledTxQueue: Queue.Queue<PendingTradeMessage>;
+    public confirmedTxQueue: Queue.Queue<ConfirmedTradeMessage>;
     private orderbook: OrderBook;
     private executor: Executor;
 
@@ -21,8 +21,8 @@ export class Exchange {
     constructor(orderbook: OrderBook, executor: Executor, provider: ethers.Provider) {
         this.provider = provider;
         this.orderQueue = new Queue<OrderMessage>('orders');
-        this.scheduledTxQueue = new Queue<TradeMessage>('scheduled-tx');
-        this.confirmedTxQueue = new Queue<ConfirmedTxMessage>('confirmed-tx');
+        this.scheduledTxQueue = new Queue<PendingTradeMessage>('scheduled-tx');
+        this.confirmedTxQueue = new Queue<ConfirmedTradeMessage>('confirmed-tx');
         this.orderbook = orderbook;
         this.executor = executor;
 
@@ -36,7 +36,7 @@ export class Exchange {
                         const canExecute = await this.executor.simulateTrade(match);
                         if (canExecute) {
                             this.scheduledTxQueue.add({
-                                action: OrderAction.TRADE,
+                                action: OrderAction.PENDING_TRADE,
                                 payload: { match }
                             });
                         }
@@ -64,30 +64,33 @@ export class Exchange {
         TODO: 
         - Batch trades - probably with a multicall
         .*/
-        this.scheduledTxQueue.process(20, async (job: Job<TradeMessage>, done: Queue.DoneCallback) => {
+        this.scheduledTxQueue.process(20, async (job: Job<PendingTradeMessage>, done: Queue.DoneCallback) => {
             const request = job.data;
-            if (request.action === OrderAction.TRADE && request.payload.match) {
+            if (request.action === OrderAction.PENDING_TRADE && request.payload.match) {
                 const match = request.payload.match;
                 try {
                     const txHash = await this.executor.trade(match);
 
                     await this.confirmedTxQueue.add({
-                        action: OrderAction.CONFIRMED_TX,
+                        action: OrderAction.CONFIRMED_TRADE,
                         payload: { txHash, match }
                     });
                     done(null, { success: true, txHash });
                 } catch (error) {
                     console.log(error)
-                    await this.orderbook.removeInflightOrder(match.takerOrderId);
+                    await this.orderbook.handleOrderRequest({
+                        action: OrderAction.FAILED_TRADE,
+                        payload: { match }
+                    });
                     done(error as Error);
                 }
             }
         });
 
         // Process confirmed transactions
-        this.confirmedTxQueue.process(20, async (job: Job<ConfirmedTxMessage>, done: Queue.DoneCallback) => {
+        this.confirmedTxQueue.process(20, async (job: Job<ConfirmedTradeMessage>, done: Queue.DoneCallback) => {
             const request = job.data;
-            if (request.action === OrderAction.CONFIRMED_TX && request.payload.match) {
+            if (request.action === OrderAction.CONFIRMED_TRADE && request.payload.match) {
                 const { match, txHash } = request.payload;
                 try {
                     /* 

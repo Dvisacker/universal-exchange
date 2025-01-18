@@ -1,26 +1,103 @@
 import { createClient } from 'redis';
 import { MakerOrder, OrderSide, TakerOrder, OrderAction, OrderType, makerOrderToMap, takerOrderToMap, makerOrderToObject, OrderMatch, orderMatchToMap, OrderMessage } from '../types/order';
 import { calculateQuoteAmount, getMarketKey, hashIds } from '../utils';
-import { MARKET_KEYS } from '../constants';
 import { MarketsByTicker, TickersByTokenPair } from '../types/markets';
 
 /**
  * A Redis-based order book implementation for the DEX system.
  * Manages limit orders, market orders, and trades using Redis as the backing store.
  * Handles order matching, cancellation, and trade scheduling.
+ * 
+ * TODO:
+ * - Different orderbooks for each market
+ * - Many edge cases
  */
 export class OrderBook {
     private redisClient;
     private readonly marketInfoByTicker: MarketsByTicker = {};
     private readonly tickersByTokenPair: TickersByTokenPair = {};
+
+    /**
+     * Redis Key Patterns:
+     * 
+     * price_levels:<marketKey> (Sorted Set)
+     * - Stores order IDs sorted by price-time priority
+     * - Score format: price + normalized timestamp
+     * - Member format: "timestamp:orderId"
+     * 
+     *   price_levels:ETH-USDC -> {
+     *     "1678234567:order123": 1.0234,  // ETH/USDC price 1.0234
+     *     "1678234570:order124": 1.0235,  // Higher price, later timestamp
+     *     "1678234580:order125": 1.0233   // Lower price, latest timestamp
+     *   }
+     * 
+     * open_orders:<orderId> (Hash)
+     * - Stores active limit orders
+     * - Fields: order properties (trader, baseToken, quoteToken, etc.)
+     * 
+     *   open_orders:order123 -> {
+     *     "trader": "0x123...",
+     *     "baseToken": "0xETH...",
+     *     "quoteToken": "0xUSDC...",
+     *     "baseAmount": "1000000000000000000",  // 1 ETH
+     *     "priceLevel": "1.0234",
+     *     "side": "SELL",
+     *     "signature": "0xabc...",
+     *     "timestamp": "1678234567"
+     *   }
+     * 
+     * inflight_orders:<orderId> (Hash)
+     * - Stores orders currently being processed/matched
+     * - Fields: order properties + matching details
+     * Example:
+     *   inflight_orders:order123 -> {
+     *     "trader": "0x123...",
+     *     "baseAmount": "1000000000000000000",
+     *     "matchedWith": "order456",
+     *     "matchTimestamp": "1678234569"
+     *   }
+     * 
+     * cancelled_orders:<orderId> (Hash)
+     * - Stores cancelled order details
+     * - Fields: original order properties + cancellation timestamp
+     * Example:
+     *   cancelled_orders:order123 -> {
+     *     "trader": "0x123...",
+     *     "baseAmount": "1000000000000000000",
+     *     "cancelledAt": "1678234570",
+     *     "reason": "USER_CANCELLED"
+     *   }
+     * 
+     * 
+     * scheduled_trades:<pendingTradeId> (Hash)
+     * - Stores trades waiting to be executed
+     * - Fields: trade details including maker and taker info
+     * Example:
+     *   scheduled_trades:trade789 -> {
+     *     "makerOrderId": "order123",
+     *     "takerOrderId": "order456",
+     *     "baseAmount": "1000000000000000000",
+     *     "quoteAmount": "1023400000",
+     *     "executionDeadline": "1678234669"
+     *   }
+     * 
+     * filled_orders:<orderId> (Hash)
+     * - Stores completely filled orders
+     * - Fields: original order + fill details
+     * Example:
+     *   filled_orders:order123 -> {
+     *     "trader": "0x123...",
+     *     "baseAmount": "1000000000000000000",
+     *     "filledAt": "1678234568",
+     *     "filledWith": ["order456", "order457"],
+     *     "totalQuoteAmount": "1023400000"
+     *   }
+     */
     private readonly PRICE_LEVELS = 'price_levels';
     private readonly OPEN_ORDERS = 'open_orders';
     private readonly INFLIGHT_ORDERS = 'inflight_orders';
     private readonly CANCELLED_ORDERS = 'cancelled_orders';
-    private readonly MATCHED_ORDERS = 'matched_orders';
-    private readonly SCHEDULED_TRADES = 'scheduled_trades';
-    private readonly MATCHED_ORDERS_BY_TAKER_ID = 'matched_orders_by_taker_id';
-    private readonly MATCHED_ORDERS_BY_MAKER_ID = 'matched_orders_by_maker_id';
+    private readonly PENDING_TRADES = 'pending_trades';
     private readonly FILLED_ORDERS = 'filled_orders';
 
     private readonly MAX_TIMESTAMP = 9999999999; // Used for price-time priority scoring
@@ -75,14 +152,6 @@ export class OrderBook {
         return `${this.OPEN_ORDERS}:${orderId}`;
     }
 
-    /**
-     * Gets the Redis key for an inflight order
-     * @param orderId - The order ID
-     * @returns The Redis key for the inflight order
-     */
-    private getInflightOrderKey(orderId: string): string {
-        return `${this.INFLIGHT_ORDERS}:${orderId}`;
-    }
 
     /**
      * Gets the Redis key for a cancelled order
@@ -94,15 +163,16 @@ export class OrderBook {
     }
 
     private getPendingTradeId(pendingTradeId: string): string {
-        return `${this.SCHEDULED_TRADES}:${pendingTradeId}`;
+        return `${this.PENDING_TRADES}:${pendingTradeId}`;
     }
 
-    private getPendingTradeKeyByTakerId(takerOrderId: string): string {
-        return `${this.MATCHED_ORDERS_BY_TAKER_ID}:${takerOrderId}`;
-    }
-
-    private getPendingTradeKeyByMakerId(makerOrderId: string): string {
-        return `${this.MATCHED_ORDERS_BY_MAKER_ID}:${makerOrderId}`;
+    /**
+     * Gets the Redis key for an inflight order (order that is included in a pending trade)
+     * @param orderId - The order ID
+     * @returns The Redis key for the inflight order
+     */
+    private getInflightOrderKey(orderId: string): string {
+        return `${this.INFLIGHT_ORDERS}:${orderId}`;
     }
 
     private getFilledOrderKey(orderId: string): string {
@@ -170,12 +240,10 @@ export class OrderBook {
         const priceLevelKey = this.getPriceLevelKey(marketKey);
         const inflightOrderKey = this.getInflightOrderKey(orderId);
 
-        // check if the order is in the open orders list
         if (!await this.redisClient.exists(openOrderKey)) {
             throw new Error(`Order ${orderId} not found in open orders`);
         }
 
-        // check if the order is in the inflight orders list
         if (await this.redisClient.exists(inflightOrderKey)) {
             throw new Error(`Order ${orderId} already in inflight orders`);
         }
@@ -195,28 +263,6 @@ export class OrderBook {
         const inflightOrderKey = this.getInflightOrderKey(order.id);
         const orderMap = takerOrderToMap(order);
         await this.redisClient.hSet(inflightOrderKey, orderMap);
-    }
-
-    /**
-     * Adds a maker order to the scheduled trades list
-     * @param order - The maker order to schedule
-     * @returns A promise that resolves when the order is scheduled
-     */
-    async addScheduledMakerOrder(order: MakerOrder): Promise<void> {
-        const scheduledOrderKey = this.getPendingTradeId(order.id);
-        const orderMap = makerOrderToMap(order);
-        await this.redisClient.hSet(scheduledOrderKey, orderMap);
-    }
-
-    /**
-     * Adds a taker order to the scheduled trades list
-     * @param order - The taker order to schedule
-     * @returns A promise that resolves when the order is scheduled
-     */
-    async addScheduledTakerOrder(order: TakerOrder): Promise<void> {
-        const scheduledOrderKey = this.getPendingTradeId(order.id);
-        const orderMap = takerOrderToMap(order);
-        await this.redisClient.hSet(scheduledOrderKey, orderMap);
     }
 
     /**
@@ -315,9 +361,16 @@ export class OrderBook {
                         takerSalt: takerOrder.salt,
                     };
 
+                    const pendingTradeKey = this.getPendingTradeId(pendingTradeId);
+                    const inflightMakerOrderKey = this.getInflightOrderKey(makerOrder.id);
+                    const inflightTakerOrderKey = this.getInflightOrderKey(takerOrder.id);
                     matchingOrders.push(orderMatch);
+
+                    // update the maker order, save the pending trade and inflight orders
                     multi.hSet(openOrderKey, 'baseAmountFilled', baseAmountFilled.toString());
-                    multi.hSet(this.MATCHED_ORDERS, orderMatchToMap(orderMatch));
+                    multi.hSet(pendingTradeKey, orderMatchToMap(orderMatch));
+                    multi.hSet(inflightMakerOrderKey, makerOrderToMap(makerOrder));
+                    multi.hSet(inflightTakerOrderKey, takerOrderToMap(takerOrder));
 
                     // edge case where both orders are filled
                     if (BigInt(makerOrder.baseAmount) === baseAmountFilled) {
@@ -355,16 +408,15 @@ export class OrderBook {
                     };
 
                     const pendingTradeKey = this.getPendingTradeId(pendingTradeId);
-                    const filledOrderKey = this.getFilledOrderKey(makerOrder.id);
-                    const pendingTradeKeyByTakerId = this.getPendingTradeKeyByTakerId(takerOrder.id);
-                    const pendingTradeKeyByMakerId = this.getPendingTradeKeyByMakerId(makerOrder.id);
-
+                    const inflightMakerOrderKey = this.getInflightOrderKey(makerOrder.id);
+                    const inflightTakerOrderKey = this.getInflightOrderKey(takerOrder.id);
                     matchingOrders.push(orderMatch);
+
+                    // delete the maker order, save the pending trade and inflight orders
                     multi.del(openOrderKey);
-                    multi.hSet(filledOrderKey, makerOrderToMap(makerOrder));
+                    multi.hSet(inflightMakerOrderKey, makerOrderToMap(makerOrder));
+                    multi.hSet(inflightTakerOrderKey, takerOrderToMap(takerOrder));
                     multi.hSet(pendingTradeKey, orderMatchToMap(orderMatch));
-                    multi.hSet(pendingTradeKeyByTakerId, orderMatchToMap(orderMatch));
-                    multi.hSet(pendingTradeKeyByMakerId, orderMatchToMap(orderMatch));
                 }
 
             }
@@ -374,15 +426,39 @@ export class OrderBook {
         return matchingOrders;
     }
 
-    /**
-     * Processes a matched order and updates the order book state
-     * @param order - The matched order to process
-     * @returns A promise that resolves when the matched order is processed
-     */
-    async handleNewMatchedOrder(order: OrderMatch): Promise<void> {
-        const inflightOrderKey = this.getInflightOrderKey(order.takerOrderId);
+    async handleFailedTrade(pendingTradeId: string): Promise<void> {
+        const pendingTradeKey = this.getPendingTradeId(pendingTradeId);
+        const pendingTrade = await this.redisClient.hGetAll(pendingTradeKey);
+        const takerOrderInflightKey = this.getInflightOrderKey(pendingTrade.takerOrderId);
+        const makerOrderInflightKey = this.getInflightOrderKey(pendingTrade.makerOrderId);
+
+        /* TODO: figure out which order is causing the trade to fail. Ideally in a well-designed system
+        this shouldn't happen if we simulate trades before including orders in the 
+        We probably want to reinclude the maker order after re-validating there is nothing wrong 
+        with the order. For now we just remove both orders*/
         const multi = this.redisClient.multi();
-        multi.hSet(inflightOrderKey, orderMatchToMap(order));
+        multi.del(pendingTradeKey);
+        multi.del(takerOrderInflightKey);
+        multi.del(makerOrderInflightKey);
+        await multi.exec();
+    }
+
+    async handleConfirmedTrade(pendingTradeId: string): Promise<void> {
+        const pendingTradeKey = this.getPendingTradeId(pendingTradeId);
+        const pendingTrade = await this.redisClient.hGetAll(pendingTradeKey);
+        const takerOrderInflightKey = this.getInflightOrderKey(pendingTrade.takerOrderId);
+        const makerOrderInflightKey = this.getInflightOrderKey(pendingTrade.makerOrderId);
+        const makerOrder = await this.redisClient.hGetAll(pendingTrade.makerOrderId);
+        const takerOrder = await this.redisClient.hGetAll(pendingTrade.takerOrderId);
+        const makerOrderFilledKey = this.getFilledOrderKey(makerOrder.id);
+        const takerOrderFilledKey = this.getFilledOrderKey(takerOrder.id);
+
+        const multi = this.redisClient.multi();
+        multi.del(pendingTradeKey);
+        multi.del(takerOrderInflightKey);
+        multi.del(makerOrderInflightKey);
+        multi.hSet(makerOrderFilledKey, makerOrder);
+        multi.hSet(takerOrderFilledKey, takerOrder);
         await multi.exec();
     }
 
@@ -411,16 +487,14 @@ export class OrderBook {
                 if (!payload.order || payload.order.type !== OrderType.TAKER) {
                     throw new Error('Invalid taker order payload');
                 }
-                // First find potential matches
                 const matches = await this.handleNewMarketOrder(payload.order);
                 return matches;
+            case OrderAction.CONFIRMED_TRADE:
+                await this.handleConfirmedTrade(payload.txHash);
+                return [];
 
-            // this is useless right now but the idea is to use a queue with a higher priority for the taker order
-            case OrderAction.CANCEL_MARKET_ORDER:
-                if (!payload.order || !payload.order.id) {
-                    throw new Error('Order ID required for cancellation');
-                }
-                await this.cancelTakerOrder(payload.order.id);
+            case OrderAction.FAILED_TRADE:
+                await this.handleFailedTrade(payload.match.pendingTradeId);
                 return [];
             default:
                 throw new Error(`Unsupported order action: ${action}`);
