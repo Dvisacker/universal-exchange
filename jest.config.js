@@ -11,7 +11,7 @@ module.exports = {
             {
                 tsconfig: 'tsconfig.json',
                 isolatedModules: true,
-            }
+            },
         ],
     },
-}; 
+};

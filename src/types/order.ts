@@ -2,12 +2,12 @@ import { z } from 'zod';
 
 export enum OrderType {
     MAKER = 'MAKER',
-    TAKER = 'TAKER'
+    TAKER = 'TAKER',
 }
 
 export enum OrderSide {
     BUY = 'BUY',
-    SELL = 'SELL'
+    SELL = 'SELL',
 }
 
 export enum OrderAction {
@@ -17,7 +17,7 @@ export enum OrderAction {
     CANCEL_MARKET_ORDER = 'CANCEL_MARKET_ORDER',
     PENDING_TRADE = 'PENDING_TRADE',
     CONFIRMED_TRADE = 'CONFIRMED_TRADE',
-    FAILED_TRADE = 'FAILED_TRADE'
+    FAILED_TRADE = 'FAILED_TRADE',
 }
 
 const makerOrderSchema = z.object({
@@ -35,7 +35,7 @@ const makerOrderSchema = z.object({
     side: z.nativeEnum(OrderSide),
     type: z.literal(OrderType.MAKER),
     deadline: z.number(),
-    salt: z.string()
+    salt: z.string(),
 });
 
 const takerOrderSchema = z.object({
@@ -52,7 +52,7 @@ const takerOrderSchema = z.object({
     side: z.nativeEnum(OrderSide),
     type: z.literal(OrderType.TAKER),
     deadline: z.number(),
-    salt: z.string()
+    salt: z.string(),
 });
 
 const orderMatchSchema = z.object({
@@ -72,57 +72,57 @@ const orderMatchSchema = z.object({
     takerOrderId: z.string(),
     takerSignature: z.string().startsWith('0x'),
     takerTimestamp: z.number(),
-    takerSalt: z.string()
+    takerSalt: z.string(),
 });
 
 const makerOrderMessageSchema = z.object({
     action: z.literal(OrderAction.NEW_LIMIT_ORDER),
     payload: z.object({
-        order: makerOrderSchema
-    })
+        order: makerOrderSchema,
+    }),
 });
 
 const takerOrderMessageSchema = z.object({
     action: z.literal(OrderAction.NEW_MARKET_ORDER),
     payload: z.object({
-        order: takerOrderSchema
-    })
+        order: takerOrderSchema,
+    }),
 });
 
 const cancelLimitOrderMessageSchema = z.object({
     action: z.literal(OrderAction.CANCEL_LIMIT_ORDER),
     payload: z.object({
-        order: makerOrderSchema
-    })
+        order: makerOrderSchema,
+    }),
 });
 
 const orderMatchMessageSchema = z.object({
     action: z.literal(OrderAction.PENDING_TRADE),
     payload: z.object({
-        match: orderMatchSchema
-    })
+        match: orderMatchSchema,
+    }),
 });
 
 const pendingTradeMessageSchema = z.object({
     action: z.literal(OrderAction.PENDING_TRADE),
     payload: z.object({
-        match: orderMatchSchema
-    })
+        match: orderMatchSchema,
+    }),
 });
 
 const confirmedTradeMessageSchema = z.object({
     action: z.literal(OrderAction.CONFIRMED_TRADE),
     payload: z.object({
         txHash: z.string(),
-        match: orderMatchSchema
-    })
+        match: orderMatchSchema,
+    }),
 });
 
 const failedTradeMessageSchema = z.object({
     action: z.literal(OrderAction.FAILED_TRADE),
     payload: z.object({
-        match: orderMatchSchema
-    })
+        match: orderMatchSchema,
+    }),
 });
 
 const orderMessageSchema = z.union([
@@ -132,7 +132,7 @@ const orderMessageSchema = z.union([
     orderMatchMessageSchema,
     pendingTradeMessageSchema,
     confirmedTradeMessageSchema,
-    failedTradeMessageSchema
+    failedTradeMessageSchema,
 ]);
 
 export type MakerOrder = z.infer<typeof makerOrderSchema>;
@@ -150,9 +150,8 @@ export const schemas = {
     orderMessage: orderMessageSchema,
     pendingTradeMessage: pendingTradeMessageSchema,
     confirmedTradeMessage: confirmedTradeMessageSchema,
-    failedTradeMessage: failedTradeMessageSchema
+    failedTradeMessage: failedTradeMessageSchema,
 };
-
 
 export function makerOrderToMap(order: MakerOrder): Map<string, string> {
     schemas.makerOrder.parse(order);
@@ -252,7 +251,7 @@ export function orderMatchToMap(order: OrderMatch): Map<string, string> {
     orderMap.set('makerTimestamp', order.makerTimestamp.toString());
     orderMap.set('makerDeadline', order.makerDeadline.toString());
     orderMap.set('makerSalt', order.makerSalt);
-    orderMap.set('makerSide', order.makerSide)
+    orderMap.set('makerSide', order.makerSide);
     orderMap.set('taker', order.taker);
     orderMap.set('takerOrderId', order.takerOrderId);
     orderMap.set('takerSignature', order.takerSignature);

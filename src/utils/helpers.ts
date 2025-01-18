@@ -1,5 +1,5 @@
 import { formatUnits, parseUnits } from 'ethers';
-import { solidityPackedKeccak256 } from 'ethers'
+import { solidityPackedKeccak256 } from 'ethers';
 import { TakerOrder } from '../types/order';
 import { MakerOrder } from '../types/order';
 import { Provider } from 'ethers';
@@ -22,9 +22,9 @@ export function calculateQuoteAmount(
     const priceInWei = parseUnits(priceLevel, PRICE_PRECISION);
 
     // Formula: quoteAmount = baseAmount * price * (10^quoteDecimals) / (10^(baseDecimals + PRICE_PRECISION))
-    const quoteAmount = (
-        BigInt(baseAmount) * priceInWei * BigInt(10 ** quoteDecimals)
-    ) / BigInt(10 ** (baseDecimals + PRICE_PRECISION));
+    const quoteAmount =
+        (BigInt(baseAmount) * priceInWei * BigInt(10 ** quoteDecimals)) /
+        BigInt(10 ** (baseDecimals + PRICE_PRECISION));
 
     return quoteAmount;
 }
@@ -36,16 +36,17 @@ export function calculateQuoteAmount(
  * @returns Keccak256 hash of the sorted IDs
  */
 export const hashIds = (id1: string, id2: string): string => {
-    const sorted = [id1, id2].sort()
-    return solidityPackedKeccak256(['string', 'string'], sorted)
-}
+    const sorted = [id1, id2].sort();
+    return solidityPackedKeccak256(['string', 'string'], sorted);
+};
 
 /**
  * Generates a market key in the format "baseToken:quoteToken"
  * @param order - A maker or taker order object
  * @returns Formatted market key string
  */
-export const getMarketKey = (order: MakerOrder | TakerOrder) => `${order.baseToken}:${order.quoteToken}`;
+export const getMarketKey = (order: MakerOrder | TakerOrder) =>
+    `${order.baseToken}:${order.quoteToken}`;
 
 /**
  * Converts a decimal string amount to wei (smallest token unit)
@@ -91,11 +92,15 @@ export const orderDeadline = (hours = 1): number => {
  * @param maxAttempts - The maximum number of attempts to poll for the receipt (default: 10)
  * @returns The transaction receipt if found, otherwise throws an error
  */
-export const pollForReceipt = async (provider: Provider, txHash: string, maxAttempts: number = 10) => {
+export const pollForReceipt = async (
+    provider: Provider,
+    txHash: string,
+    maxAttempts: number = 10
+) => {
     for (let i = 0; i < maxAttempts; i++) {
         const receipt = await provider.getTransactionReceipt(txHash);
         if (receipt) return receipt;
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise((r) => setTimeout(r, 1000));
     }
     throw new Error('Receipt not found');
-}
+};

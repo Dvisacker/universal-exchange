@@ -1,4 +1,11 @@
-import { OrderMessage, OrderAction, MakerOrder, TakerOrder, TradeMessage, ConfirmedTxMessage } from '../types/order';
+import {
+    OrderMessage,
+    OrderAction,
+    MakerOrder,
+    TakerOrder,
+    ConfirmedTradeMessage,
+    PendingTradeMessage,
+} from '../types/order';
 import Queue from 'bull';
 
 export enum Priority {
@@ -8,13 +15,13 @@ export enum Priority {
 
 export class ExchangeClient {
     public orderQueue: Queue.Queue<OrderMessage>;
-    public scheduledTxQueue: Queue.Queue<TradeMessage>;
-    public confirmedTxQueue: Queue.Queue<ConfirmedTxMessage>;
+    public scheduledTxQueue: Queue.Queue<PendingTradeMessage>;
+    public confirmedTxQueue: Queue.Queue<ConfirmedTradeMessage>;
 
     constructor() {
         this.orderQueue = new Queue<OrderMessage>('orders');
-        this.scheduledTxQueue = new Queue<TradeMessage>('scheduled-tx');
-        this.confirmedTxQueue = new Queue<ConfirmedTxMessage>('confirmed-tx');
+        this.scheduledTxQueue = new Queue<PendingTradeMessage>('scheduled-tx');
+        this.confirmedTxQueue = new Queue<ConfirmedTradeMessage>('confirmed-tx');
     }
 
     /**
@@ -23,12 +30,15 @@ export class ExchangeClient {
      * @returns The job ID of the submitted order
      */
     async submitLimitOrder(order: MakerOrder): Promise<string> {
-        const job = await this.orderQueue.add({
-            action: OrderAction.NEW_LIMIT_ORDER,
-            payload: { order }
-        }, {
-            priority: Priority.HIGH,
-        });
+        const job = await this.orderQueue.add(
+            {
+                action: OrderAction.NEW_LIMIT_ORDER,
+                payload: { order },
+            },
+            {
+                priority: Priority.HIGH,
+            }
+        );
         return job.id.toString();
     }
 
@@ -38,12 +48,15 @@ export class ExchangeClient {
      * @returns The job ID of the submitted order
      */
     async submitMarketOrder(order: TakerOrder): Promise<string> {
-        const job = await this.orderQueue.add({
-            action: OrderAction.NEW_MARKET_ORDER,
-            payload: { order }
-        }, {
-            priority: Priority.LOW,
-        });
+        const job = await this.orderQueue.add(
+            {
+                action: OrderAction.NEW_MARKET_ORDER,
+                payload: { order },
+            },
+            {
+                priority: Priority.LOW,
+            }
+        );
         return job.id.toString();
     }
 
@@ -51,16 +64,19 @@ export class ExchangeClient {
      * Cancel a limit order
      * @param order The limit order to cancel
      * @returns The job ID of the cancellation request
-     * 
+     *
      * Cancelling orders should be prioritized over new orders
      */
     async cancelLimitOrder(order: MakerOrder): Promise<string> {
-        const job = await this.orderQueue.add({
-            action: OrderAction.CANCEL_LIMIT_ORDER,
-            payload: { order }
-        }, {
-            priority: Priority.HIGH,
-        });
+        const job = await this.orderQueue.add(
+            {
+                action: OrderAction.CANCEL_LIMIT_ORDER,
+                payload: { order },
+            },
+            {
+                priority: Priority.HIGH,
+            }
+        );
         return job.id.toString();
     }
 

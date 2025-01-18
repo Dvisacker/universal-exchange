@@ -19,14 +19,16 @@ function validateEnvironment(): {
         'SETTLEMENT_CONTRACT_ADDRESS',
         'RPC_URL',
         'REDIS_URL',
-        'PRIVATE_KEY'
+        'PRIVATE_KEY',
     ] as const;
 
-    const missing = required.filter(key => !process.env[key]);
+    const missing = required.filter((key) => !process.env[key]);
 
     if (missing.length > 0) {
-        throw new Error(`Missing required environment variables: ${missing.join(', ')}\n` +
-            'Please set these variables in your environment or .env file');
+        throw new Error(
+            `Missing required environment variables: ${missing.join(', ')}\n` +
+            'Please set these variables in your environment or .env file'
+        );
     }
 
     if (!isAddress(process.env.SETTLEMENT_CONTRACT_ADDRESS!)) {
@@ -37,7 +39,7 @@ function validateEnvironment(): {
         SETTLEMENT_CONTRACT_ADDRESS: process.env.SETTLEMENT_CONTRACT_ADDRESS,
         RPC_URL: process.env.RPC_URL!,
         REDIS_URL: process.env.REDIS_URL!,
-        PRIVATE_KEY: process.env.PRIVATE_KEY!
+        PRIVATE_KEY: process.env.PRIVATE_KEY!,
     };
 }
 
@@ -52,30 +54,26 @@ async function main() {
 
         // Initialize Redis
         const redisClient = createClient({
-            url: env.REDIS_URL
+            url: env.REDIS_URL,
         });
 
         await redisClient.connect();
         Logger.info('Redis connected successfully');
 
         const marketsByTicker: MarketsByTicker = {
-            'WETH/USDC': {
-                baseToken: '0x4200000000000000000000000000000000000006',
+            'uSOL/USDC': {
+                baseToken: '0x9b8df6e244526ab5f6e6400d331db28c8fdddb55',
                 baseDecimals: 18,
                 quoteToken: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
                 quoteDecimals: 6,
-                symbol: 'WETH/USDC'
-            }
-        }
+                symbol: 'uSOL/USDC',
+            },
+        };
 
         // Initialize core services
         const orderBook = new OrderBook(marketsByTicker);
         const executor = new Executor(provider, exchangeSigner, env.SETTLEMENT_CONTRACT_ADDRESS);
-        const exchange = new Exchange(
-            orderBook,
-            executor,
-            provider
-        );
+        const exchange = new Exchange(orderBook, executor, provider);
 
         // Set up graceful shutdown
         const shutdown = async () => {
@@ -91,7 +89,6 @@ async function main() {
         Logger.info('Exchange initialized successfully');
         Logger.info(`Settlement contract: ${env.SETTLEMENT_CONTRACT_ADDRESS}`);
         Logger.info(`Exchange address: ${exchangeSigner.address}`);
-
     } catch (error) {
         Logger.error(error as Error);
         process.exit(1);

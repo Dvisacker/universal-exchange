@@ -23,16 +23,10 @@ export class Logger {
         if (!Logger.instance) {
             Logger.instance = winston.createLogger({
                 level: process.env.LOG_LEVEL || 'info',
-                format: combine(
-                    timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-                    logFormat
-                ),
+                format: combine(timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), logFormat),
                 transports: [
                     new winston.transports.Console({
-                        format: combine(
-                            colorize(),
-                            logFormat
-                        ),
+                        format: combine(colorize(), logFormat),
                     }),
                     new winston.transports.File({
                         filename: 'logs/combined.log',
@@ -68,4 +62,4 @@ export class Logger {
     public static debug(message: string, meta?: LogMeta): void {
         this.getInstance().debug(message, meta);
     }
-} 
+}

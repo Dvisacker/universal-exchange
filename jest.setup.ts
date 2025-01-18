@@ -1,7 +1,7 @@
 // Handle BigInt serialization
 expect.addSnapshotSerializer({
     test: (val) => typeof val === 'bigint',
-    print: (val: any) => val.toString()
+    print: (val: any) => val.toString(),
 });
 
 // Add toJSON to BigInt prototype

@@ -21,9 +21,9 @@ describe('OrderBook Integration Tests', () => {
                 baseDecimals: 18,
                 quoteToken: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
                 quoteDecimals: 6,
-                symbol: 'uSOL/USDC'
-            }
-        }
+                symbol: 'uSOL/USDC',
+            },
+        };
 
         orderBook = new OrderBook(marketsByTicker);
         wallet = new Wallet(testPrivateKey);
@@ -42,12 +42,12 @@ describe('OrderBook Integration Tests', () => {
                 'uSOL/USDC',
                 '1.0',
                 '300.00',
-                OrderSide.SELL,
+                OrderSide.SELL
             );
 
             await orderBook.handleOrderRequest({
                 action: OrderAction.NEW_LIMIT_ORDER,
-                payload: { order: mockOrder }
+                payload: { order: mockOrder },
             });
 
             const openOrderKey = `open_orders:${mockOrder.id}`;
@@ -69,12 +69,12 @@ describe('OrderBook Integration Tests', () => {
                 'uSOL/USDC',
                 '1.0',
                 '300.00',
-                OrderSide.BUY,
+                OrderSide.BUY
             );
 
             await orderBook.handleOrderRequest({
                 action: OrderAction.NEW_LIMIT_ORDER,
-                payload: { order: mockOrder }
+                payload: { order: mockOrder },
             });
 
             // Verify the order was added correctly
@@ -94,60 +94,31 @@ describe('OrderBook Integration Tests', () => {
         });
 
         it('successfully adds many limit orders', async () => {
-            const [
+            const [mockOrder, mockOrder2, mockOrder3, mockOrder4, mockOrder5, mockOrder6] =
+                await Promise.all([
+                    orderBuilder.createLimitOrder('uSOL/USDC', '1.0', '310.00', OrderSide.SELL),
+                    orderBuilder.createLimitOrder('uSOL/USDC', '1.0', '309.90', OrderSide.SELL),
+                    orderBuilder.createLimitOrder('uSOL/USDC', '1.0', '309.80', OrderSide.SELL),
+                    orderBuilder.createLimitOrder('uSOL/USDC', '1.0', '309.70', OrderSide.BUY),
+                    orderBuilder.createLimitOrder('uSOL/USDC', '1.0', '309.60', OrderSide.BUY),
+                    orderBuilder.createLimitOrder('uSOL/USDC', '1.0', '309.50', OrderSide.BUY),
+                ]);
+
+            for (const order of [
                 mockOrder,
                 mockOrder2,
                 mockOrder3,
                 mockOrder4,
                 mockOrder5,
-                mockOrder6
-            ] = await Promise.all([
-                orderBuilder.createLimitOrder(
-                    'uSOL/USDC',
-                    '1.0',
-                    '310.00',
-                    OrderSide.SELL,
-                ),
-                orderBuilder.createLimitOrder(
-                    'uSOL/USDC',
-                    '1.0',
-                    '309.90',
-                    OrderSide.SELL,
-                ),
-                orderBuilder.createLimitOrder(
-                    'uSOL/USDC',
-                    '1.0',
-                    '309.80',
-                    OrderSide.SELL,
-                ),
-                orderBuilder.createLimitOrder(
-                    'uSOL/USDC',
-                    '1.0',
-                    '309.70',
-                    OrderSide.BUY,
-                ),
-                orderBuilder.createLimitOrder(
-                    'uSOL/USDC',
-                    '1.0',
-                    '309.60',
-                    OrderSide.BUY,
-                ),
-                orderBuilder.createLimitOrder(
-                    'uSOL/USDC',
-                    '1.0',
-                    '309.50',
-                    OrderSide.BUY,
-                )
-            ]);
-
-            for (const order of [mockOrder, mockOrder2, mockOrder3, mockOrder4, mockOrder5, mockOrder6]) {
+                mockOrder6,
+            ]) {
                 orderBook.handleOrderRequest({
                     action: OrderAction.NEW_LIMIT_ORDER,
-                    payload: { order }
+                    payload: { order },
                 });
             }
 
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await new Promise((resolve) => setTimeout(resolve, 100));
 
             const priceLevelKey = `price_levels:uSOL/USDC`;
             const compositeIds = await redisClient.zRangeByScore(priceLevelKey, '-inf', 'inf');
@@ -159,17 +130,19 @@ describe('OrderBook Integration Tests', () => {
                 'uSOL/USDC',
                 '1.0',
                 '300.00',
-                OrderSide.SELL,
+                OrderSide.SELL
             );
 
             await orderBook.handleOrderRequest({
                 action: OrderAction.NEW_LIMIT_ORDER,
-                payload: { order: mockOrder }
+                payload: { order: mockOrder },
             });
-            await expect(orderBook.handleOrderRequest({
-                action: OrderAction.NEW_LIMIT_ORDER,
-                payload: { order: mockOrder }
-            })).rejects.toThrow('Order');
+            await expect(
+                orderBook.handleOrderRequest({
+                    action: OrderAction.NEW_LIMIT_ORDER,
+                    payload: { order: mockOrder },
+                })
+            ).rejects.toThrow('Order');
         });
     });
 
@@ -179,16 +152,16 @@ describe('OrderBook Integration Tests', () => {
                 'uSOL/USDC',
                 '1',
                 '300.00',
-                OrderSide.SELL,
+                OrderSide.SELL
             );
 
             await orderBook.handleOrderRequest({
                 action: OrderAction.NEW_LIMIT_ORDER,
-                payload: { order: mockOrder }
+                payload: { order: mockOrder },
             });
             await orderBook.handleOrderRequest({
                 action: OrderAction.CANCEL_LIMIT_ORDER,
-                payload: { order: mockOrder }
+                payload: { order: mockOrder },
             });
 
             const openOrderKey = `open_orders:${mockOrder.id}`;
@@ -205,13 +178,15 @@ describe('OrderBook Integration Tests', () => {
                 'uSOL/USDC',
                 '1',
                 '300.00',
-                OrderSide.SELL,
+                OrderSide.SELL
             );
 
-            await expect(orderBook.handleOrderRequest({
-                action: OrderAction.CANCEL_LIMIT_ORDER,
-                payload: { order: mockOrder }
-            })).rejects.toThrow('Order');
+            await expect(
+                orderBook.handleOrderRequest({
+                    action: OrderAction.CANCEL_LIMIT_ORDER,
+                    payload: { order: mockOrder },
+                })
+            ).rejects.toThrow('Order');
         });
 
         it('should throw error when cancelling an inflight order', async () => {
@@ -219,22 +194,24 @@ describe('OrderBook Integration Tests', () => {
                 'uSOL/USDC',
                 '1.0',
                 '300.00',
-                OrderSide.SELL,
+                OrderSide.SELL
             );
 
             await orderBook.handleOrderRequest({
                 action: OrderAction.NEW_LIMIT_ORDER,
-                payload: { order: mockOrder }
+                payload: { order: mockOrder },
             });
 
             // Add order to inflight orders
             const inflightOrderKey = `inflight_orders:${mockOrder.id}`;
             await redisClient.hSet(inflightOrderKey, 'id', mockOrder.id);
 
-            await expect(orderBook.handleOrderRequest({
-                action: OrderAction.CANCEL_LIMIT_ORDER,
-                payload: { order: mockOrder }
-            })).rejects.toThrow('inflight');
+            await expect(
+                orderBook.handleOrderRequest({
+                    action: OrderAction.CANCEL_LIMIT_ORDER,
+                    payload: { order: mockOrder },
+                })
+            ).rejects.toThrow('inflight');
         });
     });
 
@@ -245,11 +222,11 @@ describe('OrderBook Integration Tests', () => {
                 'uSOL/USDC',
                 '1',
                 '300.00',
-                OrderSide.SELL,
+                OrderSide.SELL
             );
             await orderBook.handleOrderRequest({
                 action: OrderAction.NEW_LIMIT_ORDER,
-                payload: { order: limitOrder }
+                payload: { order: limitOrder },
             });
 
             // Create a market buy order
@@ -257,13 +234,13 @@ describe('OrderBook Integration Tests', () => {
                 'uSOL/USDC',
                 '1',
                 '300.00',
-                OrderSide.BUY,
+                OrderSide.BUY
             );
 
             // Execute the market order
             const matches = await orderBook.handleOrderRequest({
                 action: OrderAction.NEW_MARKET_ORDER,
-                payload: { order: marketOrder }
+                payload: { order: marketOrder },
             });
 
             // Verify match
@@ -279,21 +256,21 @@ describe('OrderBook Integration Tests', () => {
                 'uSOL/USDC',
                 '1',
                 '200.00',
-                OrderSide.SELL,
+                OrderSide.SELL
             );
             const limitOrder2 = await orderBuilder.createLimitOrder(
                 'uSOL/USDC',
                 '1',
                 '210.00',
-                OrderSide.SELL,
+                OrderSide.SELL
             );
             await orderBook.handleOrderRequest({
                 action: OrderAction.NEW_LIMIT_ORDER,
-                payload: { order: limitOrder1 }
+                payload: { order: limitOrder1 },
             });
             await orderBook.handleOrderRequest({
                 action: OrderAction.NEW_LIMIT_ORDER,
-                payload: { order: limitOrder2 }
+                payload: { order: limitOrder2 },
             });
 
             // Create a market buy order for more than available at best price
@@ -301,14 +278,15 @@ describe('OrderBook Integration Tests', () => {
                 'uSOL/USDC',
                 '2',
                 '220.00',
-                OrderSide.BUY,
+                OrderSide.BUY
             );
 
             const matches = await orderBook.handleOrderRequest({
                 action: OrderAction.NEW_MARKET_ORDER,
-                payload: { order: marketOrder }
+                payload: { order: marketOrder },
             });
-            const totalFilled = BigInt(matches[0].baseAmountFilled) + BigInt(matches[1].baseAmountFilled);
+            const totalFilled =
+                BigInt(matches[0].baseAmountFilled) + BigInt(matches[1].baseAmountFilled);
 
             // Verify matches
             expect(matches.length).toBe(2);
@@ -323,11 +301,11 @@ describe('OrderBook Integration Tests', () => {
                 'uSOL/USDC',
                 '1',
                 '200.00',
-                OrderSide.SELL,
+                OrderSide.SELL
             );
             await orderBook.handleOrderRequest({
                 action: OrderAction.NEW_LIMIT_ORDER,
-                payload: { order: limitOrder }
+                payload: { order: limitOrder },
             });
 
             // Create a market buy order with lower max price
@@ -335,12 +313,12 @@ describe('OrderBook Integration Tests', () => {
                 'uSOL/USDC',
                 '1',
                 '190.00',
-                OrderSide.BUY,
+                OrderSide.BUY
             );
 
             const matches = await orderBook.handleOrderRequest({
                 action: OrderAction.NEW_MARKET_ORDER,
-                payload: { order: marketOrder }
+                payload: { order: marketOrder },
             });
 
             // Verify no matches
@@ -353,11 +331,11 @@ describe('OrderBook Integration Tests', () => {
                 'uSOL/USDC',
                 '1',
                 '180.00',
-                OrderSide.BUY,
+                OrderSide.BUY
             );
             await orderBook.handleOrderRequest({
                 action: OrderAction.NEW_LIMIT_ORDER,
-                payload: { order: limitOrder }
+                payload: { order: limitOrder },
             });
 
             // Create a market sell order
@@ -365,12 +343,12 @@ describe('OrderBook Integration Tests', () => {
                 'uSOL/USDC',
                 '1',
                 '170.00', // Willing to sell at this price or higher
-                OrderSide.SELL,
+                OrderSide.SELL
             );
 
             const matches = await orderBook.handleOrderRequest({
                 action: OrderAction.NEW_MARKET_ORDER,
-                payload: { order: marketOrder }
+                payload: { order: marketOrder },
             });
 
             expect(matches.length).toBe(1);
@@ -389,7 +367,7 @@ describe('OrderBook Integration Tests', () => {
             );
             await orderBook.handleOrderRequest({
                 action: OrderAction.NEW_LIMIT_ORDER,
-                payload: { order: expiredOrder }
+                payload: { order: expiredOrder },
             });
 
             // Create a valid limit order
@@ -397,11 +375,11 @@ describe('OrderBook Integration Tests', () => {
                 'uSOL/USDC',
                 '1',
                 '185.00',
-                OrderSide.SELL,
+                OrderSide.SELL
             );
             await orderBook.handleOrderRequest({
                 action: OrderAction.NEW_LIMIT_ORDER,
-                payload: { order: validOrder }
+                payload: { order: validOrder },
             });
 
             // Create a market buy order
@@ -409,12 +387,12 @@ describe('OrderBook Integration Tests', () => {
                 'uSOL/USDC',
                 '1',
                 '190.00',
-                OrderSide.BUY,
+                OrderSide.BUY
             );
 
             const matches = await orderBook.handleOrderRequest({
                 action: OrderAction.NEW_MARKET_ORDER,
-                payload: { order: marketOrder }
+                payload: { order: marketOrder },
             });
 
             // Should only match with the valid order
@@ -428,24 +406,24 @@ describe('OrderBook Integration Tests', () => {
                 'uSOL/USDC',
                 '1',
                 '180.00',
-                OrderSide.SELL,
+                OrderSide.SELL
             );
             await orderBook.handleOrderRequest({
                 action: OrderAction.NEW_LIMIT_ORDER,
-                payload: { order: limitOrder1 }
+                payload: { order: limitOrder1 },
             });
 
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await new Promise((resolve) => setTimeout(resolve, 100));
 
             const limitOrder2 = await orderBuilder.createLimitOrder(
                 'uSOL/USDC',
                 '1',
                 '180.00',
-                OrderSide.SELL,
+                OrderSide.SELL
             );
             await orderBook.handleOrderRequest({
                 action: OrderAction.NEW_LIMIT_ORDER,
-                payload: { order: limitOrder2 }
+                payload: { order: limitOrder2 },
             });
 
             // Create a market buy order
@@ -453,16 +431,16 @@ describe('OrderBook Integration Tests', () => {
                 'uSOL/USDC',
                 '1',
                 '180.00',
-                OrderSide.BUY,
+                OrderSide.BUY
             );
 
             const matches = await orderBook.handleOrderRequest({
                 action: OrderAction.NEW_MARKET_ORDER,
-                payload: { order: marketOrder }
+                payload: { order: marketOrder },
             });
 
             expect(matches.length).toBe(1);
             expect(matches[0].makerOrderId).toBe(limitOrder1.id);
         });
     });
-}); 
+});

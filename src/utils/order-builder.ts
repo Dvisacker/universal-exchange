@@ -24,7 +24,7 @@ export const MAKER_ORDER_TYPE = {
         { name: 'timestamp', type: 'uint256' },
         { name: 'side', type: 'string' },
         { name: 'deadline', type: 'uint256' },
-    ]
+    ],
 };
 
 export const TAKER_ORDER_TYPE = {
@@ -40,7 +40,7 @@ export const TAKER_ORDER_TYPE = {
         { name: 'timestamp', type: 'uint256' },
         { name: 'side', type: 'string' },
         { name: 'deadline', type: 'uint256' },
-    ]
+    ],
 };
 
 export class OrderBuilder {
@@ -63,7 +63,17 @@ export class OrderBuilder {
     private generateMakerOrderId(order: Omit<MakerOrder, 'id' | 'signature'>): string {
         const abiCoder = new AbiCoder();
         const encodedParams = abiCoder.encode(
-            ['address', 'address', 'address', 'uint256', 'uint256', 'string', 'uint256', 'string', 'uint256'],
+            [
+                'address',
+                'address',
+                'address',
+                'uint256',
+                'uint256',
+                'string',
+                'uint256',
+                'string',
+                'uint256',
+            ],
             [
                 order.trader,
                 order.baseToken,
@@ -90,7 +100,7 @@ export class OrderBuilder {
                 order.baseAmount,
                 order.priceLevel,
                 order.timestamp,
-                order.side
+                order.side,
             ]
         );
         return keccak256(encodedParams);
@@ -128,7 +138,7 @@ export class OrderBuilder {
         const order: MakerOrder = {
             ...orderData,
             id: this.generateMakerOrderId(orderData),
-            signature: '0x' // Will be filled after signing
+            signature: '0x', // Will be filled after signing
         };
 
         // Sign the order
@@ -144,7 +154,7 @@ export class OrderBuilder {
         amount: string,
         priceLevel: string,
         side: OrderSide,
-        deadline: number = orderDeadline(),
+        deadline: number = orderDeadline()
     ): Promise<TakerOrder> {
         const market = this.getMarketInfo(marketPair);
         const baseAmountInWei = toWei(amount, market.baseDecimals);
@@ -169,7 +179,7 @@ export class OrderBuilder {
         const order: TakerOrder = {
             ...orderData,
             id: this.generateTakerOrderId(orderData),
-            signature: '0x' // Will be filled after signing
+            signature: '0x', // Will be filled after signing
         };
 
         // Sign the order
@@ -180,7 +190,6 @@ export class OrderBuilder {
     }
 
     private async signMakerOrder(order: MakerOrder): Promise<`0x${string}`> {
-
         const typedData = {
             domain: DOMAIN,
             types: MAKER_ORDER_TYPE,
@@ -196,8 +205,8 @@ export class OrderBuilder {
                 priceLevel: order.priceLevel,
                 timestamp: order.timestamp,
                 side: order.side,
-                deadline: order.deadline
-            }
+                deadline: order.deadline,
+            },
         };
 
         const signature = await this.signer.signTypedData(
@@ -225,8 +234,8 @@ export class OrderBuilder {
                 priceLevel: order.priceLevel,
                 timestamp: order.timestamp,
                 deadline: order.deadline,
-                side: order.side
-            }
+                side: order.side,
+            },
         };
 
         const signature = await this.signer.signTypedData(

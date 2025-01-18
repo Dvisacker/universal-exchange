@@ -2,7 +2,12 @@ import { verifyTypedData, Wallet } from 'ethers';
 import { MarketsByTicker } from '../../types/markets';
 import { OrderSide } from '../../types/order';
 import { orderDeadline } from '../../utils/helpers';
-import { DOMAIN, MAKER_ORDER_TYPE, OrderBuilder, TAKER_ORDER_TYPE } from '../../utils/order-builder';
+import {
+    DOMAIN,
+    MAKER_ORDER_TYPE,
+    OrderBuilder,
+    TAKER_ORDER_TYPE,
+} from '../../utils/order-builder';
 
 describe('OrderClient Integration Tests', () => {
     let builder: OrderBuilder;
@@ -16,9 +21,9 @@ describe('OrderClient Integration Tests', () => {
                 baseDecimals: 18,
                 quoteToken: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
                 quoteDecimals: 6,
-                symbol: 'uSOL/USDC'
-            }
-        }
+                symbol: 'uSOL/USDC',
+            },
+        };
 
         wallet = new Wallet(TEST_PRIVATE_KEY);
         builder = new OrderBuilder(wallet, marketsByTicker);
@@ -26,17 +31,12 @@ describe('OrderClient Integration Tests', () => {
 
     describe('createLimitOrder', () => {
         it('should create a valid limit order with correct market info', async () => {
-            const baseAmount = '1'
+            const baseAmount = '1';
             const priceLevel = '180.00';
             const side = OrderSide.SELL;
-            const deadline = orderDeadline()
+            const deadline = orderDeadline();
 
-            const order = await builder.createLimitOrder(
-                'uSOL/USDC',
-                baseAmount,
-                priceLevel,
-                side,
-            );
+            const order = await builder.createLimitOrder('uSOL/USDC', baseAmount, priceLevel, side);
 
             // Verify order properties
             expect(order.trader).toBe(wallet.address);
@@ -63,7 +63,7 @@ describe('OrderClient Integration Tests', () => {
                 timestamp: order.timestamp,
                 side: order.side,
                 deadline: order.deadline,
-                salt: order.salt
+                salt: order.salt,
             };
 
             const recoveredAddress = verifyTypedData(
@@ -77,12 +77,9 @@ describe('OrderClient Integration Tests', () => {
         });
 
         it('should throw error for unsupported market pair', async () => {
-            await expect(builder.createLimitOrder(
-                'UNSUPPORTED/PAIR',
-                '1',
-                '1800.00',
-                OrderSide.SELL,
-            )).rejects.toThrow('Market pair');
+            await expect(
+                builder.createLimitOrder('UNSUPPORTED/PAIR', '1', '1800.00', OrderSide.SELL)
+            ).rejects.toThrow('Market pair');
         });
     });
 
@@ -122,7 +119,7 @@ describe('OrderClient Integration Tests', () => {
                 priceLevel: order.priceLevel,
                 timestamp: order.timestamp,
                 side: order.side,
-                deadline: order.deadline
+                deadline: order.deadline,
             };
 
             const recoveredAddress = verifyTypedData(
@@ -136,12 +133,9 @@ describe('OrderClient Integration Tests', () => {
         });
 
         it('should throw error for unsupported market pair', async () => {
-            await expect(builder.createMarketOrder(
-                'UNSUPPORTED/PAIR',
-                '1',
-                '1800.00',
-                OrderSide.SELL,
-            )).rejects.toThrow('Market pair');
+            await expect(
+                builder.createMarketOrder('UNSUPPORTED/PAIR', '1', '1800.00', OrderSide.SELL)
+            ).rejects.toThrow('Market pair');
         });
     });
-}); 
+});

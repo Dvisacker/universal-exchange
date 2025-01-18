@@ -1,5 +1,17 @@
 import { createClient } from 'redis';
-import { MakerOrder, OrderSide, TakerOrder, OrderAction, OrderType, makerOrderToMap, takerOrderToMap, makerOrderToObject, OrderMatch, orderMatchToMap, OrderMessage } from '../types/order';
+import {
+    MakerOrder,
+    OrderSide,
+    TakerOrder,
+    OrderAction,
+    OrderType,
+    makerOrderToMap,
+    takerOrderToMap,
+    makerOrderToObject,
+    OrderMatch,
+    orderMatchToMap,
+    OrderMessage,
+} from '../types/order';
 import { calculateQuoteAmount, getMarketKey, hashIds } from '../utils/helpers';
 import { MarketsByTicker, TickersByTokenPair } from '../types/markets';
 import AsyncLock from 'async-lock';
@@ -8,7 +20,7 @@ import AsyncLock from 'async-lock';
  * A Redis-based order book implementation for the DEX system.
  * Manages limit orders, market orders, and trades using Redis as the backing store.
  * Handles order matching, cancellation, and trade scheduling.
- * 
+ *
  * TODO:
  * - Different orderbooks for each market
  * - Many edge cases
@@ -21,22 +33,22 @@ export class OrderBook {
 
     /**
      * Redis Key Patterns:
-     * 
+     *
      * price_levels:<marketKey> (Sorted Set)
      * - Stores order IDs sorted by price-time priority
      * - Score format: price + normalized timestamp
      * - Member format: "timestamp:orderId"
-     * 
+     *
      *   price_levels:ETH-USDC -> {
      *     "1678234567:order123": 1.0234,  // ETH/USDC price 1.0234
      *     "1678234570:order124": 1.0235,  // Higher price, later timestamp
      *     "1678234580:order125": 1.0233   // Lower price, latest timestamp
      *   }
-     * 
+     *
      * open_orders:<orderId> (Hash)
      * - Stores active limit orders
      * - Fields: order properties (trader, baseToken, quoteToken, etc.)
-     * 
+     *
      *   open_orders:order123 -> {
      *     "trader": "0x123...",
      *     "baseToken": "0xETH...",
@@ -47,7 +59,7 @@ export class OrderBook {
      *     "signature": "0xabc...",
      *     "timestamp": "1678234567"
      *   }
-     * 
+     *
      * inflight_orders:<orderId> (Hash)
      * - Stores orders currently being processed/matched
      * - Fields: order properties + matching details
@@ -58,7 +70,7 @@ export class OrderBook {
      *     "matchedWith": "order456",
      *     "matchTimestamp": "1678234569"
      *   }
-     * 
+     *
      * cancelled_orders:<orderId> (Hash)
      * - Stores cancelled order details
      * - Fields: original order properties + cancellation timestamp
@@ -69,8 +81,8 @@ export class OrderBook {
      *     "cancelledAt": "1678234570",
      *     "reason": "USER_CANCELLED"
      *   }
-     * 
-     * 
+     *
+     *
      * scheduled_trades:<pendingTradeId> (Hash)
      * - Stores trades waiting to be executed
      * - Fields: trade details including maker and taker info
@@ -82,7 +94,7 @@ export class OrderBook {
      *     "quoteAmount": "1023400000",
      *     "executionDeadline": "1678234669"
      *   }
-     * 
+     *
      * filled_orders:<orderId> (Hash)
      * - Stores completely filled orders
      * - Fields: original order + fill details
@@ -132,7 +144,7 @@ export class OrderBook {
      * @throws Error if market key is not found
      */
     private getMarketKey(baseToken: string, quoteToken: string): string {
-        const marketKey = `${baseToken}:${quoteToken}`
+        const marketKey = `${baseToken}:${quoteToken}`;
         if (!this.tickersByTokenPair[marketKey]) {
             throw new Error(`Market key not found for ${baseToken}:${quoteToken}`);
         }
@@ -144,10 +156,16 @@ export class OrderBook {
             case OrderAction.NEW_LIMIT_ORDER:
             case OrderAction.CANCEL_LIMIT_ORDER:
             case OrderAction.NEW_MARKET_ORDER:
-                return this.getMarketKey(request.payload.order.baseToken, request.payload.order.quoteToken);
+                return this.getMarketKey(
+                    request.payload.order.baseToken,
+                    request.payload.order.quoteToken
+                );
             case OrderAction.CONFIRMED_TRADE:
             case OrderAction.FAILED_TRADE:
-                return this.getMarketKey(request.payload.match.baseToken, request.payload.match.quoteToken);
+                return this.getMarketKey(
+                    request.payload.match.baseToken,
+                    request.payload.match.quoteToken
+                );
             default:
                 throw new Error(`Unsupported order action: ${request.action}`);
         }
@@ -170,7 +188,6 @@ export class OrderBook {
     private getOpenOrderKey(orderId: string): string {
         return `${this.OPEN_ORDERS}:${orderId}`;
     }
-
 
     /**
      * Gets the Redis key for a cancelled order
@@ -216,9 +233,9 @@ export class OrderBook {
 
         // For sell orders: price + normalized time
         // For buy orders: -price + normalized time
-        return side === OrderSide.SELL ?
-            priceAsInt / this.PRICE_MULTIPLIER + normalizedTime :
-            -priceAsInt / this.PRICE_MULTIPLIER + normalizedTime;
+        return side === OrderSide.SELL
+            ? priceAsInt / this.PRICE_MULTIPLIER + normalizedTime
+            : -priceAsInt / this.PRICE_MULTIPLIER + normalizedTime;
     }
 
     /**
@@ -240,10 +257,12 @@ export class OrderBook {
         const score = this.createPriceTimeScore(order.priceLevel, +order.timestamp, order.side);
 
         multi.hSet(openOrderKey, orderMap);
-        multi.zAdd(priceLevelKey, [{
-            score,
-            value: `${order.timestamp}:${order.id}` // TODO: the timestamp needs to be set by the orderbook, not the client
-        }]);
+        multi.zAdd(priceLevelKey, [
+            {
+                score,
+                value: `${order.timestamp}:${order.id}`, // TODO: the timestamp needs to be set by the orderbook, not the client
+            },
+        ]);
 
         await multi.exec();
     }
@@ -259,7 +278,7 @@ export class OrderBook {
         const priceLevelKey = this.getPriceLevelKey(marketKey);
         const inflightOrderKey = this.getInflightOrderKey(orderId);
 
-        if (!await this.redisClient.exists(openOrderKey)) {
+        if (!(await this.redisClient.exists(openOrderKey))) {
             throw new Error(`Order ${orderId} not found in open orders`);
         }
 
@@ -316,11 +335,13 @@ export class OrderBook {
         // For sell orders: get buy orders with highest prices first (lowest scores)
         // For buy orders: get sell orders with lowest prices first (lowest scores)
         const makerOrderCompositeIds = await this.redisClient.zRange(priceKey, 0, -1);
-        const sortedIds = makerOrderCompositeIds.sort((a, b) => {
-            const aTimestamp = Number(a.split(':')[0]);
-            const bTimestamp = Number(b.split(':')[0]);
-            return aTimestamp - bTimestamp;
-        }).map(id => id.split(':')[1]);
+        const sortedIds = makerOrderCompositeIds
+            .sort((a, b) => {
+                const aTimestamp = Number(a.split(':')[0]);
+                const bTimestamp = Number(b.split(':')[0]);
+                return aTimestamp - bTimestamp;
+            })
+            .map((id) => id.split(':')[1]);
 
         const matchingOrders: OrderMatch[] = [];
 
@@ -345,19 +366,24 @@ export class OrderBook {
                 continue;
             }
 
-
             if (
-                (takerOrder.side === OrderSide.BUY && makerOrder.priceLevel <= takerOrder.priceLevel) ||
-                (takerOrder.side === OrderSide.SELL && makerOrder.priceLevel >= takerOrder.priceLevel)
+                (takerOrder.side === OrderSide.BUY &&
+                    makerOrder.priceLevel <= takerOrder.priceLevel) ||
+                (takerOrder.side === OrderSide.SELL &&
+                    makerOrder.priceLevel >= takerOrder.priceLevel)
             ) {
-
                 // case where the taker order has a large amount than the maker order
                 let baseAmountFilled = BigInt(0);
 
                 // the limit order is bigged that the taker order
                 if (BigInt(makerOrder.baseAmount) >= takerBaseAmountRemaining) {
                     baseAmountFilled = BigInt(takerBaseAmountRemaining);
-                    const quoteAmountFilled = calculateQuoteAmount(baseAmountFilled, makerOrder.priceLevel, makerOrder.baseDecimals, makerOrder.quoteDecimals);
+                    const quoteAmountFilled = calculateQuoteAmount(
+                        baseAmountFilled,
+                        makerOrder.priceLevel,
+                        makerOrder.baseDecimals,
+                        makerOrder.quoteDecimals
+                    );
                     const pendingTradeId = hashIds(makerOrder.id, takerOrder.id);
 
                     const orderMatch: OrderMatch = {
@@ -401,7 +427,12 @@ export class OrderBook {
                     break;
                 } else if (BigInt(makerOrder.baseAmount) < takerBaseAmountRemaining) {
                     baseAmountFilled = BigInt(makerOrder.baseAmount);
-                    const quoteAmountFilled = calculateQuoteAmount(baseAmountFilled, makerOrder.priceLevel, makerOrder.baseDecimals, makerOrder.quoteDecimals);
+                    const quoteAmountFilled = calculateQuoteAmount(
+                        baseAmountFilled,
+                        makerOrder.priceLevel,
+                        makerOrder.baseDecimals,
+                        makerOrder.quoteDecimals
+                    );
                     takerBaseAmountRemaining -= BigInt(makerOrder.baseAmount);
 
                     const pendingTradeId = hashIds(makerOrder.id, takerOrder.id);
@@ -437,7 +468,6 @@ export class OrderBook {
                     multi.hSet(inflightTakerOrderKey, takerOrderToMap(takerOrder));
                     multi.hSet(pendingTradeKey, orderMatchToMap(orderMatch));
                 }
-
             }
         }
 
@@ -503,7 +533,10 @@ export class OrderBook {
                     if (!payload.order || !payload.order.id) {
                         throw new Error('Order ID required for cancellation');
                     }
-                    await this.handleCancelLimitOrder(getMarketKey(payload.order), payload.order.id);
+                    await this.handleCancelLimitOrder(
+                        getMarketKey(payload.order),
+                        payload.order.id
+                    );
                     return [];
                 case OrderAction.NEW_MARKET_ORDER:
                     if (!payload.order || payload.order.type !== OrderType.TAKER) {
@@ -522,4 +555,4 @@ export class OrderBook {
             }
         });
     }
-} 
+}

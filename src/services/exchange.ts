@@ -1,4 +1,11 @@
-import { OrderMessage, OrderAction, OrderMatch, schemas, ConfirmedTradeMessage, PendingTradeMessage } from '../types/order';
+import {
+    OrderMessage,
+    OrderAction,
+    OrderMatch,
+    schemas,
+    ConfirmedTradeMessage,
+    PendingTradeMessage,
+} from '../types/order';
 import { OrderBook } from './orderbook';
 import { Executor } from './executor';
 import Queue, { Job } from 'bull';
@@ -31,21 +38,24 @@ export class Exchange {
             try {
                 const request = job.data;
                 const matches = await this.orderbook.handleOrderRequest(request);
-                if (request.action === OrderAction.NEW_MARKET_ORDER && z.array(schemas.orderMatch).safeParse(matches).success) {
-                    // how do we handle the different matches here. 
+                if (
+                    request.action === OrderAction.NEW_MARKET_ORDER &&
+                    z.array(schemas.orderMatch).safeParse(matches).success
+                ) {
+                    // how do we handle the different matches here.
                     for (const match of matches) {
                         try {
                             const canExecute = await this.executor.simulateTrade(match);
                             if (canExecute) {
                                 this.scheduledTxQueue.add({
                                     action: OrderAction.PENDING_TRADE,
-                                    payload: { match }
+                                    payload: { match },
                                 });
                             }
                         } catch (error) {
                             await this.orderbook.handleOrderRequest({
                                 action: OrderAction.FAILED_TRADE,
-                                payload: { match }
+                                payload: { match },
                             });
                             done(error);
                         }
@@ -72,59 +82,63 @@ export class Exchange {
         TODO: 
         - Batch trades - probably with a multicall
         .*/
-        this.scheduledTxQueue.process(20, async (job: Job<PendingTradeMessage>, done: Queue.DoneCallback) => {
-            const request = job.data;
-            if (request.action === OrderAction.PENDING_TRADE && request.payload.match) {
-                const match = request.payload.match;
-                try {
-                    const txHash = await this.executor.trade(match);
+        this.scheduledTxQueue.process(
+            20,
+            async (job: Job<PendingTradeMessage>, done: Queue.DoneCallback) => {
+                const request = job.data;
+                if (request.action === OrderAction.PENDING_TRADE && request.payload.match) {
+                    const match = request.payload.match;
+                    try {
+                        const txHash = await this.executor.trade(match);
 
-                    await this.confirmedTxQueue.add({
-                        action: OrderAction.CONFIRMED_TRADE,
-                        payload: { txHash, match }
-                    });
-                    done(null, { success: true, txHash });
-                } catch (error) {
-                    await this.orderbook.handleOrderRequest({
-                        action: OrderAction.FAILED_TRADE,
-                        payload: { match }
-                    });
-                    done(error);
+                        await this.confirmedTxQueue.add({
+                            action: OrderAction.CONFIRMED_TRADE,
+                            payload: { txHash, match },
+                        });
+                        done(null, { success: true, txHash });
+                    } catch (error) {
+                        await this.orderbook.handleOrderRequest({
+                            action: OrderAction.FAILED_TRADE,
+                            payload: { match },
+                        });
+                        done(error);
+                    }
                 }
             }
-        });
+        );
 
         // Process confirmed transactions
-        this.confirmedTxQueue.process(20, async (job: Job<ConfirmedTradeMessage>, done: Queue.DoneCallback) => {
-            const request = job.data;
-            if (request.action === OrderAction.CONFIRMED_TRADE && request.payload.match) {
-                const { match, txHash } = request.payload;
-                try {
-                    /* 
+        this.confirmedTxQueue.process(
+            20,
+            async (job: Job<ConfirmedTradeMessage>, done: Queue.DoneCallback) => {
+                const request = job.data;
+                if (request.action === OrderAction.CONFIRMED_TRADE && request.payload.match) {
+                    const { match, txHash } = request.payload;
+                    try {
+                        /* 
                     provider.waitForTransaction doesn't seem to work with hardhat so we use polling
                     until we find a better solution.
                     */
-                    const receipt = await pollForReceipt(this.provider, txHash);
+                        const receipt = await pollForReceipt(this.provider, txHash);
 
-                    if (!receipt) {
-                        throw new Error(`Transaction receipt not found: ${txHash}`);
+                        if (!receipt) {
+                            throw new Error(`Transaction receipt not found: ${txHash}`);
+                        }
+
+                        if (receipt.status === 0) {
+                            throw new Error(`Transaction failed: ${txHash}`);
+                        }
+
+                        done(null, { success: true, receipt });
+                    } catch (error) {
+                        await this.orderbook.handleOrderRequest({
+                            action: OrderAction.FAILED_TRADE,
+                            payload: { match },
+                        });
+                        done(error);
                     }
-
-                    if (receipt.status === 0) {
-                        throw new Error(`Transaction failed: ${txHash}`);
-                    }
-
-                    done(null, { success: true, receipt });
-                } catch (error) {
-                    await this.orderbook.handleOrderRequest({
-                        action: OrderAction.FAILED_TRADE,
-                        payload: { match }
-                    });
-                    done(error);
                 }
             }
-        });
+        );
     }
 }
-
-

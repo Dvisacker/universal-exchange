@@ -10,7 +10,7 @@ const DOMAIN = {
     name: 'Universal Exchange',
     version: '1',
     chainId: 31337, // TODO: get from config
-    verifyingContract: '' // Set in beforeEach
+    verifyingContract: '', // Set in beforeEach
 };
 
 describe('Executor Integration Tests', () => {
@@ -38,33 +38,22 @@ describe('Executor Integration Tests', () => {
         // Update domain with settlement contract address
         DOMAIN.verifyingContract = await settlement.getAddress();
 
-        executor = new Executor(
-            provider,
-            exchange,
-            settlement.target.toString()
-        );
+        executor = new Executor(provider, exchange, settlement.target.toString());
 
         makerAddress = await maker.getAddress();
         takerAddress = await taker.getAddress();
-        await usol.mint(makerAddress, ethers.parseEther('100')); // 100usol 
+        await usol.mint(makerAddress, ethers.parseEther('100')); // 100usol
         await usdc.mint(takerAddress, ethers.parseUnits('200000', 6)); // 200,000 USDC
         await usol.connect(maker).approve(settlement.target, ethers.MaxUint256);
         await usdc.connect(taker).approve(settlement.target, ethers.MaxUint256);
 
-        let tx = await usol.connect(maker).approve(
-            settlement.target,
-            toWei("100", 18)
-        );
+        let tx = await usol.connect(maker).approve(settlement.target, toWei('100', 18));
 
         await tx.wait();
 
-        tx = await usdc.connect(taker).approve(
-            settlement.target,
-            toWei("200000", 6)
-        );
+        tx = await usdc.connect(taker).approve(settlement.target, toWei('200000', 6));
 
         await tx.wait();
-
 
         sampleMatch = {
             pendingTradeId: '1',
@@ -72,8 +61,8 @@ describe('Executor Integration Tests', () => {
             maker: makerAddress,
             baseToken: usol.target.toString(),
             quoteToken: usdc.target.toString(),
-            baseAmountFilled: toWei("1", 18),
-            quoteAmountFilled: toWei("1800", 6),
+            baseAmountFilled: toWei('1', 18),
+            quoteAmountFilled: toWei('1800', 6),
             makerSignature: '0x',
             makerTimestamp: Date.now(),
             makerDeadline: orderDeadline(),
@@ -83,42 +72,35 @@ describe('Executor Integration Tests', () => {
             takerOrderId: '2',
             takerSignature: '0x',
             takerTimestamp: Date.now(),
-            takerSalt: generateSalt()
+            takerSalt: generateSalt(),
         };
     });
 
-    it("should track deposits correctly", async () => {
-        let tx = await settlement.connect(maker).deposit(
-            usol.target,
-            toWei("100", 18)
-        ); await tx.wait(); let depositedBalance = await settlement.deposits(makerAddress, usol.target); let allowance = await usol.allowance(makerAddress, settlement.target); expect(depositedBalance.toString()).toBe(toWei("100", 18).toString()); expect(allowance.toString()).toBe("0"); tx = await settlement.connect(maker).withdraw(usol.target, toWei("100", 18));
+    it('should track deposits correctly', async () => {
+        let tx = await settlement.connect(maker).deposit(usol.target, toWei('100', 18));
+        await tx.wait();
+        let depositedBalance = await settlement.deposits(makerAddress, usol.target);
+        let allowance = await usol.allowance(makerAddress, settlement.target);
+        expect(depositedBalance.toString()).toBe(toWei('100', 18).toString());
+        expect(allowance.toString()).toBe('0');
+        tx = await settlement.connect(maker).withdraw(usol.target, toWei('100', 18));
 
         await tx.wait();
 
-        depositedBalance = await settlement.deposits(
-            makerAddress,
-            usol.target
-        );
+        depositedBalance = await settlement.deposits(makerAddress, usol.target);
         let balance = await usol.balanceOf(makerAddress);
         allowance = await usol.allowance(makerAddress, settlement.target);
 
-        expect(depositedBalance.toString()).toBe("0");
-        expect(balance.toString()).toBe(toWei("100", 18).toString());
+        expect(depositedBalance.toString()).toBe('0');
+        expect(balance.toString()).toBe(toWei('100', 18).toString());
     });
 
-
     it('should successfully simulate a valid trade', async () => {
-        let tx = await settlement.connect(maker).deposit(
-            usol.target,
-            toWei("100", 18)
-        );
+        let tx = await settlement.connect(maker).deposit(usol.target, toWei('100', 18));
 
         await tx.wait();
 
-        tx = await settlement.connect(taker).deposit(
-            usdc.target,
-            toWei("200000", 6)
-        );
+        tx = await settlement.connect(taker).deposit(usdc.target, toWei('200000', 6));
 
         await tx.wait();
 
@@ -127,17 +109,11 @@ describe('Executor Integration Tests', () => {
     });
 
     it('should successfully execute a valid trade', async () => {
-        let tx = await settlement.connect(maker).deposit(
-            usol.target,
-            toWei("100", 18)
-        );
+        let tx = await settlement.connect(maker).deposit(usol.target, toWei('100', 18));
 
         await tx.wait();
 
-        tx = await settlement.connect(taker).deposit(
-            usdc.target,
-            toWei("200000", 6)
-        );
+        tx = await settlement.connect(taker).deposit(usdc.target, toWei('200000', 6));
 
         await tx.wait();
 
@@ -151,14 +127,18 @@ describe('Executor Integration Tests', () => {
         const makerFinalWeth = await settlement.deposits(await maker.getAddress(), usol.target);
         const takerFinalUsdc = await settlement.deposits(await taker.getAddress(), usdc.target);
 
-        expect((makerInitialWeth - makerFinalWeth).toString()).toBe(ethers.parseEther('1').toString()); // Maker sent 1 WETH
-        expect((takerInitialUsdc - takerFinalUsdc).toString()).toBe(ethers.parseUnits('1800', 6).toString()); // Taker sent 1800 USDC
+        expect((makerInitialWeth - makerFinalWeth).toString()).toBe(
+            ethers.parseEther('1').toString()
+        ); // Maker sent 1 WETH
+        expect((takerInitialUsdc - takerFinalUsdc).toString()).toBe(
+            ethers.parseUnits('1800', 6).toString()
+        ); // Taker sent 1800 USDC
     });
 
     it('should fail to execute trade with expired maker deadline', async () => {
         const expiredMatch = {
             ...sampleMatch,
-            makerDeadline: orderDeadline(-1)
+            makerDeadline: orderDeadline(-1),
         };
 
         const result = await executor.simulateTrade(expiredMatch);
@@ -170,7 +150,7 @@ describe('Executor Integration Tests', () => {
     it('should fail to execute trade with invalid maker signature', async () => {
         const invalidMatch = {
             ...sampleMatch,
-            makerSignature: '0x1234567890' as `0x${string}` // Invalid signature
+            makerSignature: '0x1234567890' as `0x${string}`, // Invalid signature
         };
 
         const result = await executor.simulateTrade(invalidMatch);
@@ -183,7 +163,7 @@ describe('Executor Integration Tests', () => {
         // Create match with amount larger than maker's balance
         const largeMatch = {
             ...sampleMatch,
-            baseAmountFilled: toWei("1000", 18)
+            baseAmountFilled: toWei('1000', 18),
         };
 
         const result = await executor.simulateTrade(largeMatch);
@@ -196,7 +176,7 @@ describe('Executor Integration Tests', () => {
         // Create match with amount larger than taker's balance
         const largeMatch = {
             ...sampleMatch,
-            quoteAmountFilled: toWei("1000000", 6)
+            quoteAmountFilled: toWei('1000000', 6),
         };
 
         const result = await executor.simulateTrade(largeMatch);
@@ -226,4 +206,4 @@ describe('Executor Integration Tests', () => {
 
         await usdc.connect(taker).approve(settlement.target, ethers.MaxUint256);
     });
-}); 
+});

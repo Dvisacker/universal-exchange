@@ -17,10 +17,17 @@ export class Executor {
      * @param signingKey - The private key to use for signing transactions
      * @param settlementContractAddress - The address of the settlement contract
      */
-    constructor(provider: ethers.Provider, signer: ethers.Signer, settlementContractAddress: string) {
+    constructor(
+        provider: ethers.Provider,
+        signer: ethers.Signer,
+        settlementContractAddress: string
+    ) {
         this.provider = provider;
         this.signer = signer;
-        this.settlementContract = Settlement__factory.connect(settlementContractAddress, this.signer);
+        this.settlementContract = Settlement__factory.connect(
+            settlementContractAddress,
+            this.signer
+        );
     }
 
     /**
@@ -53,9 +60,9 @@ export class Executor {
                 taker: match.taker,
                 takerOrderId: match.takerOrderId,
                 takerSignature: match.takerSignature,
-                takerTimestamp: match.takerTimestamp
-            })
-            return result
+                takerTimestamp: match.takerTimestamp,
+            });
+            return result;
         } catch (error) {
             console.error('Error simulating trade', error);
             return false;
@@ -83,9 +90,9 @@ export class Executor {
             taker: match.taker,
             takerOrderId: match.takerOrderId,
             takerSignature: match.takerSignature,
-            takerTimestamp: match.takerTimestamp
+            takerTimestamp: match.takerTimestamp,
         });
 
         return tx.hash;
     }
-} 
+}
