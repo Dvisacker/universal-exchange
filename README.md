@@ -2,7 +2,7 @@
 
 - Architect and implement a part of the backend for a new exchange that uAssets could be settled on. Focus on the part you think best showcase your abilities and relevance.
 
-I initially wanted to focused on the orderbook but implemented a few other things (queue, executor contract) - mostly to make sure the system as a whole somewhat makes sense.
+I initially focused on the orderbook but ended up implementing a few other things (queue, executor contract) - mostly to make sure the system as a whole somewhat makes sense.
 
 ## Architecture
 
