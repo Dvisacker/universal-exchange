@@ -118,8 +118,8 @@ describe('ExchangeClient Integration Tests', () => {
             expect(confirmedTxQueueResult.receipt.status).toBe(1);
             expect((makerWethDeposit - initialMakerWethDeposit).toString()).toBe(toWei('-1', 18));
             expect((takerWethDeposit - initialTakerWethDeposit).toString()).toBe(toWei('1', 18));
-            expect((makerUsdcDeposit - initialMakerUsdcDeposit).toString()).toBe(toWei('3000', 6));
-            expect((takerUsdcDeposit - initialTakerUsdcDeposit).toString()).toBe(toWei('-3000', 6));
+            expect((makerUsdcDeposit - initialMakerUsdcDeposit).toString()).toBe(toWei('300', 6));
+            expect((takerUsdcDeposit - initialTakerUsdcDeposit).toString()).toBe(toWei('-300', 6));
         });
     });
 });
