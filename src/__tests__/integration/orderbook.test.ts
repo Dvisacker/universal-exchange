@@ -113,8 +113,6 @@ describe('OrderBook Integration Tests', () => {
             // @ts-expect-error accessing private method for testing
             const score2 = orderBook.createPriceTimeScore('0.000123457', timestamp, OrderSide.SELL);
 
-            console.log(score1, score2);
-
             expect(score1).toBeLessThan(score2);
         });
     });
@@ -312,12 +310,45 @@ describe('OrderBook Integration Tests', () => {
                 payload: { order: limitOrder },
             });
 
-            // Create a market buy order
+            // Create a market buy order (buyer willing to buy SOL for at most 310.00 USDC)
             const marketOrder = await orderBuilder.createMarketOrder(
+                'uSOL/USDC',
+                '1',
+                '310.00',
+                OrderSide.BUY
+            );
+
+            // Execute the market order
+            const matches = await orderBook.handleOrderRequest({
+                action: OrderAction.NEW_MARKET_ORDER,
+                payload: { order: marketOrder },
+            });
+
+            // Verify match
+            expect(matches.length).toBe(1);
+            expect(matches[0].makerOrderId).toBe(limitOrder.id);
+            expect(matches[0].takerOrderId).toBe(marketOrder.id);
+            expect(matches[0].baseAmountFilled).toBe(marketOrder.baseAmount);
+        });
+
+        it('should match a market sell order with a single limit buy order', async () => {
+            const limitOrder = await orderBuilder.createLimitOrder(
                 'uSOL/USDC',
                 '1',
                 '300.00',
                 OrderSide.BUY
+            );
+            await orderBook.handleOrderRequest({
+                action: OrderAction.NEW_LIMIT_ORDER,
+                payload: { order: limitOrder },
+            });
+
+            // Create a market sell order for selling SOL for at least 290.00 USDC
+            const marketOrder = await orderBuilder.createMarketOrder(
+                'uSOL/USDC',
+                '1',
+                '290.00',
+                OrderSide.SELL
             );
 
             // Execute the market order

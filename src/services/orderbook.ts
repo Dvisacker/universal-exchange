@@ -300,24 +300,26 @@ export class OrderBook {
         const marketKey = this.getMarketKey(takerOrder.baseToken, takerOrder.quoteToken);
         const priceKey = `${this.PRICE_LEVELS}:${marketKey}`;
 
-        // For sell orders: get buy orders with highest prices first (lowest scores)
-        // For buy orders: get sell orders with lowest prices first (lowest scores)
-        const makerOrderCompositeIds = await this.redisClient.zRange(priceKey, 0, -1);
-        const sortedIds = makerOrderCompositeIds
-            .sort((a, b) => {
-                const aTimestamp = Number(a.split(':')[0]);
-                const bTimestamp = Number(b.split(':')[0]);
-                return aTimestamp - bTimestamp;
-            })
-            .map((id) => id.split(':')[1]);
+        /* Returns an array that looks like this: 
+         [
+            "1700000000:0x...order123",  // format is "timestamp:orderId"
+            "1700000001:0x...order456",
+            "1700000002:0x...order789"
+        ] */
+        let makerOrderCompositeIds =
+            takerOrder.side === OrderSide.BUY
+                ? await this.redisClient.zRangeByScore(priceKey, 0, 'inf') // get all limit sell orders
+                : (await this.redisClient.zRangeByScore(priceKey, '-inf', 0)).reverse(); // get all limit buy orders
 
-        const matchingOrders: OrderMatch[] = [];
+
+        const makerOrderIds = makerOrderCompositeIds.map((id) => id.split(':')[1]);
 
         let takerBaseAmountRemaining = BigInt(takerOrder.baseAmount);
 
+        const matchingOrders: OrderMatch[] = [];
         const multi = this.redisClient.multi();
 
-        for (const makerOrderId of sortedIds) {
+        for (const makerOrderId of makerOrderIds) {
             const openOrderKey = this.getOpenOrderKey(makerOrderId);
             const cancelledOrderKey = this.getCancelledOrderKey(makerOrderId);
 
