@@ -7,8 +7,8 @@
         "watch": "ts-node-dev --respawn --transpile-only src/index.ts",
         "test": "jest --runInBand",
         "test:quiet": "jest --silent",
-        "test:watch": "jest --watch --silent",
-        "test:watch:verbose": "jest --watch",
+        "test:watch": "jest --watch --silent --runInBand",
+        "test:watch:verbose": "jest --watch --runInBand",
         "compile": "npx hardhat compile",
         "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,css,scss,md}\"",
         "format:check": "prettier --check \"src/**/*.ts\""

@@ -36,7 +36,7 @@ export class ExchangeClient {
                 payload: { order },
             },
             {
-                priority: Priority.HIGH,
+                priority: Priority.LOW,
             }
         );
         return job.id.toString();

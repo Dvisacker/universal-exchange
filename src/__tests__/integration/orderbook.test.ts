@@ -36,6 +36,89 @@ describe('OrderBook Integration Tests', () => {
         await redisClient.quit();
     });
 
+    describe('createPriceTimeScore', () => {
+
+        it('should create lower scores for lower sell prices', () => {
+            // March 15, 2024, 12:00:00 UTC
+            const timestamp = 1710504000000;
+            // @ts-expect-error accessing private method for testing
+            const lowerScore = orderBook.createPriceTimeScore('1.0', timestamp, OrderSide.SELL);
+            // @ts-expect-error accessing private method for testing
+            const higherScore = orderBook.createPriceTimeScore('2.0', timestamp, OrderSide.SELL);
+
+            expect(lowerScore).toBeLessThan(higherScore);
+        });
+
+        it('should create higher scores for higher buy prices', () => {
+            // March 15, 2024, 12:00:00 UTC
+            const timestamp = 1710504000000;
+            // @ts-expect-error accessing private method for testing
+            const lowerScore = orderBook.createPriceTimeScore('1.0', timestamp, OrderSide.BUY);
+            // @ts-expect-error accessing private method for testing
+            const higherScore = orderBook.createPriceTimeScore('2.0', timestamp, OrderSide.BUY);
+
+            expect(lowerScore).toBeGreaterThan(higherScore);
+        });
+
+        it('should prioritize earlier timestamps for the same price', () => {
+            const price = '1.0';
+            // March 15, 2024, 12:00:00 UTC
+            const earlierTime = 1710504000000;
+            // March 15, 2024, 12:01:00 UTC (1 minute later)
+            const laterTime = 1710504060000;
+
+            // Test sell orders
+            // @ts-expect-error accessing private method for testing
+            const earlierSellScore = orderBook.createPriceTimeScore(price, earlierTime, OrderSide.SELL);
+            // @ts-expect-error accessing private method for testing
+            const laterSellScore = orderBook.createPriceTimeScore(price, laterTime, OrderSide.SELL);
+            expect(earlierSellScore).toBeLessThan(laterSellScore);
+
+            // Test buy orders
+            // @ts-expect-error accessing private method for testing
+            const earlierBuyScore = orderBook.createPriceTimeScore(price, earlierTime, OrderSide.BUY);
+            // @ts-expect-error accessing private method for testing
+            const laterBuyScore = orderBook.createPriceTimeScore(price, laterTime, OrderSide.BUY);
+            expect(earlierBuyScore).toBeLessThan(laterBuyScore);
+        });
+
+        it('should maintain price priority over time priority', () => {
+            const betterPrice = '1.0';
+            const worsePrice = '2.0';
+            // March 15, 2024, 12:00:00 UTC
+            const earlierTime = 1710504000000;
+            // March 15, 2024, 12:05:00 UTC (5 minutes later)
+            const laterTime = 1710504300000;
+
+            // Test sell orders (lower price is better)
+            // @ts-expect-error accessing private method for testing
+            const laterBetterSellScore = orderBook.createPriceTimeScore(betterPrice, laterTime, OrderSide.SELL);
+            // @ts-expect-error accessing private method for testing
+            const earlierWorseSellScore = orderBook.createPriceTimeScore(worsePrice, earlierTime, OrderSide.SELL);
+            expect(laterBetterSellScore).toBeLessThan(earlierWorseSellScore);
+
+            // Test buy orders (higher price is better)
+            // @ts-expect-error accessing private method for testing
+            const laterBetterBuyScore = orderBook.createPriceTimeScore(worsePrice, laterTime, OrderSide.BUY);
+            // @ts-expect-error accessing private method for testing
+            const earlierWorseBuyScore = orderBook.createPriceTimeScore(betterPrice, earlierTime, OrderSide.BUY);
+            expect(laterBetterBuyScore).toBeLessThan(earlierWorseBuyScore);
+        });
+
+        it('should handle decimal prices correctly', () => {
+            // March 15, 2024, 12:00:00 UTC
+            const timestamp = 1710504000000;
+            // @ts-expect-error accessing private method for testing
+            const score1 = orderBook.createPriceTimeScore('0.000123456', timestamp, OrderSide.SELL);
+            // @ts-expect-error accessing private method for testing
+            const score2 = orderBook.createPriceTimeScore('0.000123457', timestamp, OrderSide.SELL);
+
+            console.log(score1, score2);
+
+            expect(score1).toBeLessThan(score2);
+        });
+    });
+
     describe('handleNewLimitOrder', () => {
         it('should successfully add a new sell limit order', async () => {
             const mockOrder = await orderBuilder.createLimitOrder(

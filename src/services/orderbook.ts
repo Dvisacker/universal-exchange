@@ -113,10 +113,9 @@ export class OrderBook {
     private readonly CANCELLED_ORDERS = 'cancelled_orders';
     private readonly PENDING_TRADES = 'pending_trades';
     private readonly FILLED_ORDERS = 'filled_orders';
-    private readonly ORDER_LOCK = 'order_lock';
 
     private readonly MAX_TIMESTAMP = 9999999999; // Used for price-time priority scoring
-    private readonly PRICE_MULTIPLIER = 1000000; // 6 decimal places for price precision
+    private readonly PRICE_MULTIPLIER = 1000000000; // 6 decimal places for price precision
     private readonly LOCK_TIMEOUT = 30000; // 30 seconds lock timeout
 
     /**
@@ -234,8 +233,8 @@ export class OrderBook {
         // For sell orders: price + normalized time
         // For buy orders: -price + normalized time
         return side === OrderSide.SELL
-            ? priceAsInt / this.PRICE_MULTIPLIER + normalizedTime
-            : -priceAsInt / this.PRICE_MULTIPLIER + normalizedTime;
+            ? priceAsInt + normalizedTime
+            : -priceAsInt + normalizedTime;
     }
 
     /**
@@ -290,37 +289,6 @@ export class OrderBook {
         multi.del(openOrderKey);
         multi.zRem(priceLevelKey, orderId);
         await multi.exec();
-    }
-
-    /**
-     * Adds an order to the inflight orders list
-     * @param order - The taker order to mark as inflight
-     * @returns A promise that resolves when the order is added
-     */
-    private async addInflightOrder(order: TakerOrder): Promise<void> {
-        const inflightOrderKey = this.getInflightOrderKey(order.id);
-        const orderMap = takerOrderToMap(order);
-        await this.redisClient.hSet(inflightOrderKey, orderMap);
-    }
-
-    /**
-     * Removes an order from the inflight orders list
-     * @param orderId - The ID of the order to remove
-     * @returns A promise that resolves when the order is removed
-     */
-    private async removeInflightOrder(orderId: string): Promise<void> {
-        const inflightOrderKey = this.getInflightOrderKey(orderId);
-        await this.redisClient.del(inflightOrderKey);
-    }
-
-    /**
-     * Cancels a taker (market) order
-     * @param orderId - The ID of the order to cancel
-     * @returns A promise that resolves when the order is cancelled
-     */
-    private async cancelTakerOrder(orderId: string): Promise<void> {
-        const inflightOrderKey = this.getInflightOrderKey(orderId);
-        await this.redisClient.del(inflightOrderKey);
     }
 
     /**
